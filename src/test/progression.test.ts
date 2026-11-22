@@ -77,7 +77,7 @@ describe('latestEntryFor', () => {
 })
 
 describe('planPosition', () => {
-  const plan: Plan = { name: 'P', weeks: 4, deloadEvery: 4, active: true, createdAt: 0, days: [{ label: 'Mon', routineId: 1 }, { label: 'Wed', routineId: 2 }, { label: 'Fri', routineId: 1 }] }
+  const plan: Plan = { name: 'P', weeks: 4, deloadEvery: 4, active: true, cursor: 0, createdAt: 0, days: [{ label: 'Mon', routineId: 1 }, { label: 'Wed', routineId: 2 }, { label: 'Fri', routineId: 1 }] }
   it('starts at week 1 day 1', () => expect(planPosition(plan, 0)).toMatchObject({ week: 1, day: 1, isDeload: false, complete: false }))
   it('wraps days into weeks', () => expect(planPosition(plan, 4)).toMatchObject({ week: 2, day: 2 }))
   it('flags deload weeks', () => expect(planPosition(plan, 9)).toMatchObject({ week: 4, day: 1, isDeload: true }))

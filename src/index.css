@@ -716,3 +716,202 @@ textarea:focus {
   gap: 8px;
   margin-top: 8px;
 }
+
+/* Exercise bar (one exercise at a time) */
+.exbar {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.exbar::-webkit-scrollbar {
+  display: none;
+}
+.exbar__tab {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 10px;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  max-width: 150px;
+}
+.exbar__tab--active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+.exbar__tab--done {
+  color: var(--good);
+}
+.exbar__tab--add {
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  padding: 6px 14px;
+}
+.exbar__name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+.exbar__meta {
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Set grid */
+.setgrid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.setgrid__head,
+.setgrid__row {
+  display: grid;
+  grid-template-columns: 34px 56px 1fr 1fr 40px;
+  align-items: center;
+  gap: 4px;
+}
+.setgrid__head {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 0 2px;
+}
+.setgrid__head span:nth-child(3),
+.setgrid__head span:nth-child(4) {
+  text-align: center;
+}
+.setgrid__row {
+  padding: 3px 2px;
+  border-radius: 8px;
+}
+.setgrid__row--next {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.setgrid__row--done {
+  opacity: 0.7;
+}
+.setgrid__row--warm .setgrid__num {
+  color: var(--warn);
+}
+.setgrid__num {
+  background: none;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  text-align: center;
+}
+.setgrid__prev {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+.setgrid__prev:disabled {
+  cursor: default;
+}
+
+/* Plates */
+.plates {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 80px;
+  padding: 8px 0;
+}
+.plate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* Body measurements */
+.measure-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.measure {
+  display: flex;
+  justify-content: space-between;
+  background: var(--bg-2);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.good {
+  color: var(--good);
+}
+.bad {
+  color: var(--bad);
+}
+
+/* Friends compare table */
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+.compare__head,
+.compare__row {
+  display: grid;
+  grid-template-columns: 1.3fr repeat(auto-fit, minmax(60px, 1fr));
+  gap: 6px;
+  align-items: center;
+}
+.compare__head {
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+.compare__row span:not(:first-child),
+.compare__head span:not(:first-child) {
+  text-align: right;
+}
+.accent {
+  color: var(--accent);
+}
+.list__item--hi {
+  border-color: var(--accent);
+}
+.chart__bar {
+  fill: color-mix(in srgb, var(--accent) 45%, var(--surface-2));
+}
+.chart__bar--hi {
+  fill: var(--accent);
+}
+.plan-grid__cell--tap {
+  font: inherit;
+  font-size: 0.75rem;
+  color: inherit;
+  cursor: pointer;
+}

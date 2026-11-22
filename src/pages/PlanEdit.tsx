@@ -12,6 +12,7 @@ function blankPlan(): Plan {
     weeks: 8,
     deloadEvery: 4,
     active: true,
+    cursor: 0,
     createdAt: Date.now(),
     days: [
       { label: 'Mon', routineId: null },
@@ -117,7 +118,7 @@ function PlanEditor({ initial }: { initial: Plan }) {
         <span>Notes (optional)</span>
         <textarea value={plan.notes ?? ''} onChange={(e) => setPlan({ ...plan, notes: e.target.value })} />
       </label>
-      <p className="muted small">The plan advances one day each time you finish a workout (or mark a rest day done), so missing a calendar day never breaks it.</p>
+      <p className="muted small">The plan is a sequence, not a calendar. Finishing a workout moves it one day forward. Skip or jump to any day from the plan page whenever life gets in the way.</p>
     </div>
   )
 }

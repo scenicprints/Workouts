@@ -6,12 +6,15 @@ interface Props {
   onPick: (exercise: Exercise) => void
   onClose: () => void
   title?: string
+  /** Show these first, e.g. same-muscle swaps. */
+  prefer?: (e: Exercise) => boolean
+  excludeId?: number
 }
 
 const MUSCLES = ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Hamstrings', 'Glutes', 'Calves', 'Core', 'Other']
 const NONE: Exercise[] = []
 
-export function ExercisePicker({ onPick, onClose, title = 'Add exercise' }: Props) {
+export function ExercisePicker({ onPick, onClose, title = 'Add exercise', prefer, excludeId }: Props) {
   const exercises = useLiveQuery(() => db.exercises.orderBy('name').toArray(), []) ?? NONE
   const [query, setQuery] = useState('')
   const [creating, setCreating] = useState(false)
@@ -21,9 +24,11 @@ export function ExercisePicker({ onPick, onClose, title = 'Add exercise' }: Prop
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return exercises
-    return exercises.filter((e) => e.name.toLowerCase().includes(q) || e.muscle.toLowerCase().includes(q) || e.equipment.toLowerCase().includes(q))
-  }, [exercises, query])
+    let list = exercises.filter((e) => e.id !== excludeId)
+    if (q) list = list.filter((e) => e.name.toLowerCase().includes(q) || e.muscle.toLowerCase().includes(q) || e.equipment.toLowerCase().includes(q))
+    if (prefer) list = [...list].sort((a, b) => Number(prefer(b)) - Number(prefer(a)))
+    return list
+  }, [exercises, query, prefer, excludeId])
 
   async function create() {
     const name = newName.trim()
@@ -75,7 +80,7 @@ export function ExercisePicker({ onPick, onClose, title = 'Add exercise' }: Prop
             <ul className="list list--scroll">
               {filtered.map((e) => (
                 <li key={e.id}>
-                  <button type="button" className="list__item" onClick={() => onPick(e)}>
+                  <button type="button" className={`list__item${prefer?.(e) ? ' list__item--hi' : ''}`} onClick={() => onPick(e)}>
                     <span className="list__title">{e.name}</span>
                     <span className="list__meta">
                       {e.muscle} · {e.equipment}

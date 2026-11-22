@@ -3,14 +3,16 @@ import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.tsx'
-import { seedIfEmpty } from './db'
+import { seedIfEmpty, topUpLibrary } from './db'
 
 registerSW({ immediate: true })
 
-void seedIfEmpty().finally(() => {
-  createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
-  )
-})
+void seedIfEmpty()
+  .then(() => topUpLibrary())
+  .finally(() => {
+    createRoot(document.getElementById('root')!).render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    )
+  })

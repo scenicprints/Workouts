@@ -10,6 +10,10 @@ import { RoutineEdit } from './pages/RoutineEdit'
 import { PlanEdit } from './pages/PlanEdit'
 import { PlanDetail } from './pages/PlanDetail'
 import { Settings } from './pages/Settings'
+import { Body } from './pages/Body'
+import { More } from './pages/More'
+import { Generate } from './pages/Generate'
+import { Friends } from './pages/Friends'
 
 export default function App() {
   return (
@@ -20,6 +24,10 @@ export default function App() {
           <Route path="workout" element={<Workout />} />
           <Route path="history" element={<History />} />
           <Route path="history/:id" element={<SessionDetail />} />
+          <Route path="body" element={<Body />} />
+          <Route path="more" element={<More />} />
+          <Route path="friends" element={<Friends />} />
+          <Route path="generate" element={<Generate />} />
           <Route path="library" element={<Library />} />
           <Route path="library/:tab" element={<Library />} />
           <Route path="exercises/:id" element={<ExerciseDetail />} />

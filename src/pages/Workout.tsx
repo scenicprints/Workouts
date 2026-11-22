@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Exercise, type Session, type SessionEntry, type SetEntry } from '../db'
+import { db, type Exercise, type Session, type SessionEntry, type SetEntry, type Unit } from '../db'
 import { useDefaultRest, useExerciseMap, useUnit } from '../hooks/useSettings'
 import { restTimer } from '../hooks/useRestTimer'
 import { discardSession, finishSession, nextPlanWorkout, startEmptySession, startRoutineSession } from '../lib/sessions'
-import { latestEntryFor } from '../lib/progression'
+import { latestEntryFor, roundToPlate } from '../lib/progression'
 import { formatDuration, formatWeight } from '../lib/format'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { NumberField } from '../components/NumberField'
+import { PlateCalculator } from '../components/PlateCalculator'
 
 const NO_SESSIONS: Session[] = []
 
@@ -31,10 +32,10 @@ function StartWorkout() {
       {next && !next.complete && next.routine ? (
         <div className="card card--accent">
           <div className="card__title">
-            {next.plan.name} · Week {next.week}, Day {next.day}
+            {next.plan.name} · Week {next.week}, {next.label}
           </div>
           <p className="muted">
-            {next.label} · {next.routine.name}
+            {next.routine.name}
             {next.isDeload ? ' · deload week' : ''}
           </p>
           <button type="button" className="btn btn--primary btn--block btn--lg" onClick={() => startRoutineSession(next.routine!, { plan: next.plan, unit })}>
@@ -46,7 +47,7 @@ function StartWorkout() {
         <div className="card__title">Routines</div>
         {routines.length === 0 ? (
           <p className="muted small">
-            No routines yet. <Link to="/routines/new">Create one</Link> to get set targets, progression and rest timers.
+            No routines yet. <Link to="/generate">Generate a program</Link> or <Link to="/routines/new">build a routine</Link>.
           </p>
         ) : (
           <div className="stack">
@@ -73,60 +74,95 @@ function ActiveWorkout({ session }: { session: Session }) {
   const unit = useUnit()
   const defaultRest = useDefaultRest()
   const exercises = useExerciseMap()
-  const [picking, setPicking] = useState(false)
-  const [mode, setMode] = useState<'list' | 'focus'>(() => (localStorage.getItem('workouts.mode') as 'list' | 'focus') || 'list')
-  const [focusIndex, setFocusIndex] = useState(0)
+  const [picking, setPicking] = useState<'add' | 'swap' | null>(null)
+  const [index, setIndex] = useState(() => firstUnfinished(session))
   const [now, setNow] = useState(() => Date.now())
   const history = useLiveQuery(() => db.sessions.filter((s) => !!s.finishedAt).toArray(), []) ?? NO_SESSIONS
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30000)
+    const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
-  useEffect(() => {
-    localStorage.setItem('workouts.mode', mode)
-  }, [mode])
 
   const id = session.id!
   const save = (entries: SessionEntry[]) => db.sessions.update(id, { entries })
+  const current = Math.min(index, Math.max(session.entries.length - 1, 0))
+  const entry = session.entries[current]
 
   function updateSet(ei: number, si: number, patch: Partial<SetEntry>) {
-    const entries = session.entries.map((e, i) => (i === ei ? { ...e, sets: e.sets.map((s, j) => (j === si ? { ...s, ...patch } : s)) } : e))
-    void save(entries)
+    void save(session.entries.map((e, i) => (i === ei ? { ...e, sets: e.sets.map((s, j) => (j === si ? { ...s, ...patch } : s)) } : e)))
   }
-  function toggleDone(ei: number, si: number) {
-    const set = session.entries[ei].sets[si]
+  /** Log a set: mark done, start rest, and let untouched upcoming sets follow what you just did. */
+  function logSet(ei: number, si: number) {
+    const e = session.entries[ei]
+    const set = e.sets[si]
     const done = !set.done
-    updateSet(ei, si, { done })
-    if (done) restTimer.start(session.entries[ei].restSec || defaultRest)
+    const sets = e.sets.map((s, j) => {
+      if (j === si) return { ...s, done }
+      if (done && j > si && !s.done && s.kind !== 'warmup' && s.weight === (s.targetWeight ?? s.weight) && set.kind !== 'warmup') return { ...s, weight: set.weight }
+      return s
+    })
+    void save(session.entries.map((x, i) => (i === ei ? { ...x, sets } : x)))
+    if (done) restTimer.start(set.kind === 'warmup' ? Math.min(60, e.restSec || defaultRest) : e.restSec || defaultRest)
   }
-  function addSet(ei: number) {
-    const entry = session.entries[ei]
-    const last = entry.sets[entry.sets.length - 1]
-    const next: SetEntry = last ? { ...last, done: false } : { reps: 8, weight: 0, done: false }
-    void save(session.entries.map((e, i) => (i === ei ? { ...e, sets: [...e.sets, next] } : e)))
+  function addSet(ei: number, kind: 'work' | 'warmup' = 'work') {
+    const e = session.entries[ei]
+    const work = e.sets.filter((s) => s.kind !== 'warmup')
+    const last = work[work.length - 1]
+    let next: SetEntry
+    if (kind === 'warmup') {
+      // Base warm-ups on the heaviest working weight on screen, so they still make sense on a
+      // first session where the plan target is 0 and you typed the weight in yourself.
+      const target = Math.max(0, ...work.map((s) => s.weight), ...work.map((s) => s.targetWeight ?? 0))
+      const n = e.sets.filter((s) => s.kind === 'warmup').length
+      const pct = [0.4, 0.6, 0.8][n] ?? 0.9
+      next = { reps: n === 0 ? 8 : 5, weight: roundToPlate(target * pct, unit), done: false, kind: 'warmup' }
+      const warmups = e.sets.filter((s) => s.kind === 'warmup')
+      void save(session.entries.map((x, i) => (i === ei ? { ...x, sets: [...warmups, next, ...work] } : x)))
+      return
+    }
+    next = last ? { ...last, done: false } : { reps: 8, weight: 0, done: false, kind: 'work' }
+    void save(session.entries.map((x, i) => (i === ei ? { ...x, sets: [...x.sets, next] } : x)))
   }
   function removeSet(ei: number, si: number) {
     void save(session.entries.map((e, i) => (i === ei ? { ...e, sets: e.sets.filter((_, j) => j !== si) } : e)))
   }
   function removeExercise(ei: number) {
     void save(session.entries.filter((_, i) => i !== ei))
-    setFocusIndex((f) => Math.max(0, Math.min(f, session.entries.length - 2)))
+    setIndex((f) => Math.max(0, Math.min(f, session.entries.length - 2)))
   }
   function setRest(ei: number, restSec: number) {
     void save(session.entries.map((e, i) => (i === ei ? { ...e, restSec } : e)))
   }
   function addExercise(ex: Exercise) {
     const prev = latestEntryFor(history, ex.id!)
-    const template = prev?.sets.at(-1)
-    const sets: SetEntry[] = Array.from({ length: prev?.sets.length || 3 }, () => ({
+    const template = prev?.sets.filter((s) => s.kind !== 'warmup').at(-1)
+    const sets: SetEntry[] = Array.from({ length: prev?.sets.filter((s) => s.kind !== 'warmup').length || 3 }, () => ({
       reps: template?.reps ?? 8,
       weight: template?.weight ?? 0,
       done: false,
+      kind: 'work',
     }))
     void save([...session.entries, { exerciseId: ex.id!, restSec: prev?.restSec ?? defaultRest, increment: prev?.increment ?? (unit === 'kg' ? 2.5 : 5), sets }])
-    setPicking(false)
-    setFocusIndex(session.entries.length)
+    setPicking(null)
+    setIndex(session.entries.length)
+  }
+  function swapExercise(ex: Exercise) {
+    const prev = latestEntryFor(history, ex.id!)
+    const template = prev?.sets.filter((s) => s.kind !== 'warmup').at(-1)
+    void save(
+      session.entries.map((e, i) =>
+        i === current
+          ? {
+              ...e,
+              exerciseId: ex.id!,
+              increment: prev?.increment ?? e.increment,
+              sets: e.sets.map((s) => (s.done ? s : { ...s, weight: template?.weight ?? 0, reps: template?.reps ?? s.reps, targetWeight: template?.weight ?? 0, targetReps: template?.reps ?? s.targetReps })),
+            }
+          : e,
+      ),
+    )
+    setPicking(null)
   }
   async function finish() {
     const doneSets = session.entries.reduce((a, e) => a + e.sets.filter((s) => s.done).length, 0)
@@ -142,16 +178,19 @@ function ActiveWorkout({ session }: { session: Session }) {
     navigate('/', { replace: true })
   }
 
-  const doneSets = session.entries.reduce((a, e) => a + e.sets.filter((s) => s.done).length, 0)
-  const totalSets = session.entries.reduce((a, e) => a + e.sets.length, 0)
+  const doneSets = session.entries.reduce((a, e) => a + e.sets.filter((s) => s.done && s.kind !== 'warmup').length, 0)
+  const totalSets = session.entries.reduce((a, e) => a + e.sets.filter((s) => s.kind !== 'warmup').length, 0)
+  const currentMuscle = entry ? exercises?.get(entry.exerciseId)?.muscle : undefined
 
   return (
     <div className="stack">
       <div className="page-head">
         <div>
-          <h1>{session.name}</h1>
-          <span className="muted small mono">
-            {formatDuration(now - session.startedAt)} · {doneSets}/{totalSets} sets
+          <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 700 }}>
+            {formatDuration(now - session.startedAt)}
+          </div>
+          <span className="muted small">
+            {session.name} · {doneSets}/{totalSets} sets
           </span>
         </div>
         <button type="button" className="btn btn--primary" onClick={finish}>
@@ -159,208 +198,177 @@ function ActiveWorkout({ session }: { session: Session }) {
         </button>
       </div>
 
-      {session.entries.length > 0 ? (
-        <div className="segmented" role="group" aria-label="View mode">
-          <button type="button" aria-pressed={mode === 'list'} onClick={() => setMode('list')}>
-            List
-          </button>
-          <button type="button" aria-pressed={mode === 'focus'} onClick={() => setMode('focus')}>
-            Guided
-          </button>
-        </div>
-      ) : null}
+      {/* Exercise bar: one exercise at a time, swipe-free tabs. */}
+      <div className="exbar" role="tablist" aria-label="Exercises">
+        {session.entries.map((e, i) => {
+          const work = e.sets.filter((s) => s.kind !== 'warmup')
+          const done = work.filter((s) => s.done).length
+          const complete = work.length > 0 && done === work.length
+          return (
+            <button key={`${e.exerciseId}-${i}`} type="button" role="tab" aria-selected={i === current} className={`exbar__tab${i === current ? ' exbar__tab--active' : ''}${complete ? ' exbar__tab--done' : ''}`} onClick={() => setIndex(i)}>
+              <span className="exbar__name">{exercises?.get(e.exerciseId)?.name ?? 'Exercise'}</span>
+              <span className="exbar__meta">
+                {done}/{work.length}
+              </span>
+            </button>
+          )
+        })}
+        <button type="button" className="exbar__tab exbar__tab--add" onClick={() => setPicking('add')} aria-label="Add exercise">
+          +
+        </button>
+      </div>
 
-      {session.entries.length === 0 ? <div className="empty">Add an exercise to get going.</div> : null}
-
-      {mode === 'focus' && session.entries.length > 0 ? (
-        <FocusView
-          session={session}
-          index={Math.min(focusIndex, session.entries.length - 1)}
-          setIndex={setFocusIndex}
-          exercises={exercises}
-          unit={unit}
-          history={history}
-          onToggle={toggleDone}
-          onUpdate={updateSet}
-          onAddSet={addSet}
-          onRemoveSet={removeSet}
-        />
+      {!entry ? (
+        <div className="empty">Add an exercise to get going.</div>
       ) : (
-        session.entries.map((entry, ei) => (
-          <ExerciseCard
-            key={`${entry.exerciseId}-${ei}`}
-            entry={entry}
-            exercise={exercises?.get(entry.exerciseId)}
-            unit={unit}
-            previous={latestEntryFor(history, entry.exerciseId)}
-            onToggle={(si) => toggleDone(ei, si)}
-            onUpdate={(si, patch) => updateSet(ei, si, patch)}
-            onAddSet={() => addSet(ei)}
-            onRemoveSet={(si) => removeSet(ei, si)}
-            onRemove={() => removeExercise(ei)}
-            onRest={(r) => setRest(ei, r)}
-          />
-        ))
+        <ExercisePanel
+          key={`${entry.exerciseId}-${current}`}
+          entry={entry}
+          exercise={exercises?.get(entry.exerciseId)}
+          unit={unit}
+          previous={latestEntryFor(history, entry.exerciseId)}
+          isLast={current >= session.entries.length - 1}
+          onLog={(si) => logSet(current, si)}
+          onUpdate={(si, patch) => updateSet(current, si, patch)}
+          onAddSet={(kind) => addSet(current, kind)}
+          onRemoveSet={(si) => removeSet(current, si)}
+          onRemove={() => removeExercise(current)}
+          onRest={(r) => setRest(current, r)}
+          onSwap={() => setPicking('swap')}
+          onNext={() => setIndex(current + 1)}
+        />
       )}
 
-      <button type="button" className="btn btn--block" onClick={() => setPicking(true)}>
-        + Add exercise
-      </button>
       <button type="button" className="btn btn--ghost btn--danger btn--block" onClick={discard}>
         Discard workout
       </button>
 
-      {picking ? <ExercisePicker onPick={addExercise} onClose={() => setPicking(false)} /> : null}
+      {picking === 'add' ? <ExercisePicker onPick={addExercise} onClose={() => setPicking(null)} /> : null}
+      {picking === 'swap' && entry ? <ExercisePicker title="Swap exercise" prefer={(e) => e.muscle === currentMuscle} excludeId={entry.exerciseId} onPick={swapExercise} onClose={() => setPicking(null)} /> : null}
     </div>
   )
 }
 
-interface CardProps {
+function firstUnfinished(session: Session): number {
+  const i = session.entries.findIndex((e) => e.sets.some((s) => !s.done))
+  return i === -1 ? Math.max(0, session.entries.length - 1) : i
+}
+
+interface PanelProps {
   entry: SessionEntry
   exercise: Exercise | undefined
-  unit: string
+  unit: Unit
   previous: SessionEntry | undefined
-  onToggle: (si: number) => void
+  isLast: boolean
+  onLog: (si: number) => void
   onUpdate: (si: number, patch: Partial<SetEntry>) => void
-  onAddSet: () => void
+  onAddSet: (kind?: 'work' | 'warmup') => void
   onRemoveSet: (si: number) => void
   onRemove: () => void
   onRest: (sec: number) => void
+  onSwap: () => void
+  onNext: () => void
 }
 
-function ExerciseCard({ entry, exercise, unit, previous, onToggle, onUpdate, onAddSet, onRemoveSet, onRemove, onRest }: CardProps) {
+function ExercisePanel({ entry, exercise, unit, previous, isLast, onLog, onUpdate, onAddSet, onRemoveSet, onRemove, onRest, onSwap, onNext }: PanelProps) {
   const [menu, setMenu] = useState(false)
+  const [plates, setPlates] = useState<number | null>(null)
   const step = unit === 'kg' ? 2.5 : 5
+  const prevWork = previous?.sets.filter((s) => s.kind !== 'warmup') ?? []
+  const allDone = entry.sets.length > 0 && entry.sets.every((s) => s.done)
+  const nextUp = entry.sets.findIndex((s) => !s.done)
+  // Labels: warm-ups count as W1, W2…; working sets as 1, 2… and map onto last time's working sets.
+  const labels: { label: string; prev: SetEntry | undefined }[] = []
+  for (let work = 0, warm = 0, i = 0; i < entry.sets.length; i++) {
+    if (entry.sets[i].kind === 'warmup') labels.push({ label: `W${++warm}`, prev: undefined })
+    else labels.push({ label: `${++work}`, prev: prevWork[work - 1] })
+  }
   return (
-    <div className="card exercise">
+    <div className="card">
       <div className="exercise__head">
         <div>
-          <h3>
+          <h2 style={{ margin: 0 }}>
             <Link to={`/exercises/${entry.exerciseId}`}>{exercise?.name ?? 'Exercise'}</Link>
-          </h3>
+          </h2>
           <span className="muted small">
             Rest {entry.restSec}s
-            {previous ? ` · last: ${previous.sets.map((s) => `${s.reps}×${s.weight}`).join(', ')}` : ''}
+            {prevWork.length ? ` · last: ${prevWork.map((s) => `${s.reps}×${s.weight}`).join(', ')}` : ' · first time'}
           </span>
         </div>
-        <button type="button" className="btn btn--ghost btn--sm" onClick={() => setMenu((m) => !m)} aria-label="Exercise options">
+        <button type="button" className="btn btn--ghost btn--sm" onClick={() => setMenu((m) => !m)} aria-label="Exercise options" aria-expanded={menu}>
           ⋯
         </button>
       </div>
       {menu ? (
-        <div className="row" style={{ marginBottom: 10 }}>
-          <NumberField label="Rest (s)" value={entry.restSec} onChange={onRest} step={15} compact />
-          <button type="button" className="btn btn--sm btn--danger" onClick={onRemove}>
-            Remove exercise
-          </button>
+        <div className="stack" style={{ marginBottom: 12 }}>
+          <div className="row">
+            <NumberField label="Rest (s)" value={entry.restSec} onChange={onRest} step={15} compact />
+            <button type="button" className="btn btn--sm" onClick={() => onAddSet('warmup')}>
+              + Warm-up set
+            </button>
+          </div>
+          <div className="row">
+            <button type="button" className="btn btn--sm" onClick={onSwap}>
+              Swap exercise
+            </button>
+            <button type="button" className="btn btn--sm" onClick={() => setPlates(entry.sets[nextUp === -1 ? entry.sets.length - 1 : nextUp]?.weight ?? 0)}>
+              Plates
+            </button>
+            <button type="button" className="btn btn--sm btn--danger" onClick={onRemove}>
+              Remove
+            </button>
+          </div>
         </div>
       ) : null}
-      <div className="sets">
-        {entry.sets.map((set, si) => (
-          <SetRow key={si} index={si} set={set} unit={unit} step={step} onToggle={() => onToggle(si)} onUpdate={(p) => onUpdate(si, p)} onRemove={() => onRemoveSet(si)} />
-        ))}
-      </div>
-      <button type="button" className="btn btn--ghost btn--sm" style={{ marginTop: 8 }} onClick={onAddSet}>
-        + Add set
-      </button>
-    </div>
-  )
-}
 
-function SetRow({ index, set, unit, step, onToggle, onUpdate, onRemove }: { index: number; set: SetEntry; unit: string; step: number; onToggle: () => void; onUpdate: (p: Partial<SetEntry>) => void; onRemove: () => void }) {
-  return (
-    <div className={`set${set.done ? ' set--done' : ''}`}>
-      <div className="set__lead">
-        <button type="button" className="set__num" onClick={onRemove} title="Remove set" aria-label={`Remove set ${index + 1}`}>
-          Set {index + 1}
-        </button>
-        <span className="set__target">{set.targetWeight !== undefined ? `${set.targetReps} × ${formatWeight(set.targetWeight, unit)}` : 'free'}</span>
+      <div className="setgrid" role="table">
+        <div className="setgrid__head" role="row">
+          <span>Set</span>
+          <span>Last</span>
+          <span>{unit}</span>
+          <span>Reps</span>
+          <span />
+        </div>
+        {entry.sets.map((set, si) => {
+          const isWarm = set.kind === 'warmup'
+          const { label, prev } = labels[si]
+          const isNext = si === nextUp
+          return (
+            <div key={si} className={`setgrid__row${set.done ? ' setgrid__row--done' : ''}${isNext ? ' setgrid__row--next' : ''}${isWarm ? ' setgrid__row--warm' : ''}`} role="row">
+              <button type="button" className="setgrid__num" onClick={() => onRemoveSet(si)} title="Remove set" aria-label={`Remove set ${label}`}>
+                {label}
+              </button>
+              <button type="button" className="setgrid__prev" onClick={() => prev && onUpdate(si, { weight: prev.weight, reps: prev.reps })} title={prev ? 'Use last time' : undefined} disabled={!prev}>
+                {prev ? `${prev.reps}×${prev.weight}` : set.targetWeight ? `${set.targetReps}×${set.targetWeight}` : '—'}
+              </button>
+              <NumberField value={set.weight} onChange={(weight) => onUpdate(si, { weight })} step={step} compact />
+              <NumberField value={set.reps} onChange={(reps) => onUpdate(si, { reps })} step={1} compact />
+              <button type="button" className="set__check" aria-pressed={set.done} onClick={() => onLog(si)} aria-label={set.done ? 'Mark set not done' : 'Log set'}>
+                ✓
+              </button>
+            </div>
+          )
+        })}
       </div>
-      <NumberField value={set.weight} onChange={(weight) => onUpdate({ weight })} step={step} suffix={unit} compact />
-      <NumberField value={set.reps} onChange={(reps) => onUpdate({ reps })} step={1} suffix="reps" compact />
-      <button type="button" className="set__check" aria-pressed={set.done} onClick={onToggle} aria-label={set.done ? 'Mark set not done' : 'Mark set done'}>
-        ✓
-      </button>
-    </div>
-  )
-}
 
-interface FocusProps {
-  session: Session
-  index: number
-  setIndex: (i: number) => void
-  exercises: Map<number, Exercise> | undefined
-  unit: string
-  history: Session[]
-  onToggle: (ei: number, si: number) => void
-  onUpdate: (ei: number, si: number, patch: Partial<SetEntry>) => void
-  onAddSet: (ei: number) => void
-  onRemoveSet: (ei: number, si: number) => void
-}
-
-function FocusView({ session, index, setIndex, exercises, unit, history, onToggle, onUpdate, onAddSet, onRemoveSet }: FocusProps) {
-  const entry = session.entries[index]
-  const exercise = exercises?.get(entry.exerciseId)
-  const previous = latestEntryFor(history, entry.exerciseId)
-  const current = entry.sets.findIndex((s) => !s.done)
-  const step = unit === 'kg' ? 2.5 : 5
-  const allDone = current === -1
-  return (
-    <div className="card focus">
-      <div className="focus__nav">
-        <button type="button" className="btn btn--ghost btn--sm" disabled={index === 0} onClick={() => setIndex(index - 1)}>
-          ‹ Prev
+      <div className="row" style={{ marginTop: 10 }}>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={() => onAddSet('work')}>
+          + Add set
         </button>
-        <span className="muted small">
-          {index + 1} / {session.entries.length}
-        </span>
-        <button type="button" className="btn btn--ghost btn--sm" disabled={index >= session.entries.length - 1} onClick={() => setIndex(index + 1)}>
-          Next ›
-        </button>
-      </div>
-      <h2>
-        <Link to={`/exercises/${entry.exerciseId}`}>{exercise?.name ?? 'Exercise'}</Link>
-      </h2>
-      {previous ? <p className="muted small">Last time: {previous.sets.map((s) => `${s.reps}×${s.weight}`).join(', ')}</p> : null}
-      {allDone ? (
-        <>
-          <div className="focus__big">Done</div>
-          <p className="muted">All {entry.sets.length} sets logged.</p>
-          {index < session.entries.length - 1 ? (
-            <button type="button" className="btn btn--primary btn--block btn--lg" onClick={() => setIndex(index + 1)}>
-              Next exercise
-            </button>
-          ) : (
-            <p className="muted small">That was the last exercise. Hit Finish at the top when you are done.</p>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="muted small">
-            Set {current + 1} of {entry.sets.length}
-          </div>
-          <div className="focus__big">
-            {entry.sets[current].reps} × {formatWeight(entry.sets[current].weight, unit)}
-          </div>
-          <div className="row" style={{ justifyContent: 'center', marginBottom: 12 }}>
-            <NumberField label="Weight" value={entry.sets[current].weight} onChange={(weight) => onUpdate(index, current, { weight })} step={step} suffix={unit} />
-            <NumberField label="Reps" value={entry.sets[current].reps} onChange={(reps) => onUpdate(index, current, { reps })} step={1} />
-          </div>
-          <button type="button" className="btn btn--primary btn--block btn--lg" onClick={() => onToggle(index, current)}>
-            Log set {current + 1}
+        <span className="grow" />
+        {allDone && !isLast ? (
+          <button type="button" className="btn btn--primary btn--sm" onClick={onNext}>
+            Next exercise ›
           </button>
-        </>
-      )}
-      <div className="row" style={{ justifyContent: 'center', marginTop: 12 }}>
-        {entry.sets.map((s, si) => (
-          <button key={si} type="button" className={`pill${s.done ? ' pill--good' : ''}`} style={{ border: 0, cursor: 'pointer' }} onClick={() => (s.done ? onToggle(index, si) : onRemoveSet(index, si))} title={s.done ? 'Undo this set' : 'Remove this set'}>
-            {s.done ? `${s.reps}×${s.weight}` : `set ${si + 1}`}
-          </button>
-        ))}
-        <button type="button" className="pill" style={{ border: 0, cursor: 'pointer' }} onClick={() => onAddSet(index)}>
-          + set
-        </button>
+        ) : allDone && isLast ? (
+          <span className="muted small">Last exercise done. Hit Finish.</span>
+        ) : nextUp >= 0 ? (
+          <span className="muted small">
+            Next: {entry.sets[nextUp].reps} × {formatWeight(entry.sets[nextUp].weight, unit)}
+          </span>
+        ) : null}
       </div>
+      {plates !== null ? <PlateCalculator weight={plates} unit={unit} onClose={() => setPlates(null)} /> : null}
     </div>
   )
 }

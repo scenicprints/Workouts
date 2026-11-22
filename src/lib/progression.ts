@@ -21,14 +21,14 @@ export function convertWeight(value: number, from: Unit, to: Unit): number {
 
 /** True when every completed set reached the target reps and at least one set was completed. */
 export function hitAllTargets(sets: SetEntry[]): boolean {
-  const done = sets.filter((s) => s.done)
+  const done = sets.filter((s) => s.done && s.kind !== 'warmup')
   if (done.length === 0) return false
   return done.every((s) => s.reps >= (s.targetReps ?? 0))
 }
 
 /** The heaviest weight used on a completed set, or null if nothing was completed. */
 export function workingWeight(sets: SetEntry[]): number | null {
-  const done = sets.filter((s) => s.done)
+  const done = sets.filter((s) => s.done && s.kind !== 'warmup')
   if (done.length === 0) return null
   return Math.max(...done.map((s) => s.weight))
 }
@@ -116,11 +116,11 @@ export function planPosition(plan: Plan, finishedPlanSessions: number): PlanPosi
 
 export function sessionVolume(session: Session): number {
   return session.entries.reduce(
-    (sum, e) => sum + e.sets.filter((s) => s.done).reduce((a, s) => a + s.reps * s.weight, 0),
+    (sum, e) => sum + e.sets.filter((s) => s.done && s.kind !== 'warmup').reduce((a, s) => a + s.reps * s.weight, 0),
     0,
   )
 }
 
 export function sessionSetCount(session: Session): number {
-  return session.entries.reduce((sum, e) => sum + e.sets.filter((s) => s.done).length, 0)
+  return session.entries.reduce((sum, e) => sum + e.sets.filter((s) => s.done && s.kind !== 'warmup').length, 0)
 }
