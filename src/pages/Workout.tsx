@@ -10,6 +10,7 @@ import { formatDuration, formatWeight } from '../lib/format'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { NumberField } from '../components/NumberField'
 import { PlateCalculator } from '../components/PlateCalculator'
+import { onSessionFinished } from '../lib/health'
 
 const NO_SESSIONS: Session[] = []
 
@@ -169,6 +170,7 @@ function ActiveWorkout({ session }: { session: Session }) {
     if (doneSets === 0 && !confirm('No sets were completed. Finish anyway? The workout will be saved as empty.')) return
     restTimer.stop()
     await finishSession(id)
+    void onSessionFinished(id)
     navigate(`/history/${id}`, { replace: true })
   }
   async function discard() {

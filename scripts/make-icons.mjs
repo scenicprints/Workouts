@@ -81,7 +81,44 @@ function icon(size) {
   })
 }
 
-mkdirSync('public', { recursive: true })
-writeFileSync('public/icon-192.png', icon(192))
-writeFileSync('public/icon-512.png', icon(512))
-console.log('wrote public/icon-192.png and public/icon-512.png')
+function adaptiveForeground(size) {
+  // Android adaptive icons: 108dp canvas, content inside the central 72dp. Draw the icon at 66% in the middle.
+  const inner = Math.round(size * 0.66)
+  const offset = Math.round((size - inner) / 2)
+  const s = inner
+  const radius = s * 0.2
+  const inRounded = (x, y) => {
+    const cx = Math.min(Math.max(x, radius), s - radius)
+    const cy = Math.min(Math.max(y, radius), s - radius)
+    return (x - cx) ** 2 + (y - cy) ** 2 <= radius ** 2
+  }
+  const rect = (x, y, x0, y0, x1, y1) => x >= x0 && x < x1 && y >= y0 && y < y1
+  return png(size, (px, py) => {
+    const x = px - offset
+    const y = py - offset
+    if (x < 0 || y < 0 || x >= s || y >= s || !inRounded(x + 0.5, y + 0.5)) return [0, 0, 0, 0]
+    const u = x / s
+    const v = y / s
+    if (rect(u, v, 0.14, 0.46, 0.86, 0.54)) return [...BAR, 255]
+    if (rect(u, v, 0.22, 0.30, 0.32, 0.70) || rect(u, v, 0.68, 0.30, 0.78, 0.70)) return [...PLATE, 255]
+    if (rect(u, v, 0.12, 0.36, 0.20, 0.64) || rect(u, v, 0.80, 0.36, 0.88, 0.64)) return [...PLATE, 255]
+    return [...BG, 255]
+  })
+}
+
+if (process.argv.includes('--android')) {
+  const densities = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 }
+  for (const [d, size] of Object.entries(densities)) {
+    const dir = `android/app/src/main/res/mipmap-${d}`
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(`${dir}/ic_launcher.png`, icon(size))
+    writeFileSync(`${dir}/ic_launcher_round.png`, icon(size))
+    writeFileSync(`${dir}/ic_launcher_foreground.png`, adaptiveForeground(Math.round(size * 2.25)))
+  }
+  console.log('wrote Android launcher icons')
+} else {
+  mkdirSync('public', { recursive: true })
+  writeFileSync('public/icon-192.png', icon(192))
+  writeFileSync('public/icon-512.png', icon(512))
+  console.log('wrote public/icon-192.png and public/icon-512.png')
+}

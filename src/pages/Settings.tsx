@@ -5,6 +5,7 @@ import { convertWeight } from '../lib/progression'
 import { NumberField } from '../components/NumberField'
 import { beep, vibrate } from '../lib/alerts'
 import { loadSyncConfig, saveSyncConfig, testSync, type SyncConfig } from '../lib/sync'
+import { HealthSettings } from '../components/HealthSettings'
 
 export function Settings() {
   const unit = useUnit()
@@ -106,6 +107,8 @@ export function Settings() {
           Used for freeform exercises. Routines set their own rest per exercise.
         </p>
       </div>
+
+      <HealthSettings onStatus={setStatus} />
 
       <SyncSettings onStatus={setStatus} />
 

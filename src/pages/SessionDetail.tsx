@@ -49,6 +49,22 @@ export function SessionDetail() {
           <div className="stat__label">duration</div>
         </div>
       </div>
+      {session.hrAvg !== undefined || session.calories !== undefined ? (
+        <div className="stats">
+          <div className="stat">
+            <div className="stat__value">{session.hrAvg !== undefined ? Math.round(session.hrAvg) : '—'}</div>
+            <div className="stat__label">avg bpm</div>
+          </div>
+          <div className="stat">
+            <div className="stat__value">{session.hrMax !== undefined ? Math.round(session.hrMax) : '—'}</div>
+            <div className="stat__label">peak bpm</div>
+          </div>
+          <div className="stat">
+            <div className="stat__value">{session.calories !== undefined ? Math.round(session.calories) : '—'}</div>
+            <div className="stat__label">kcal from watch</div>
+          </div>
+        </div>
+      ) : null}
       {session.entries.map((e, i) => {
         const best = e.sets.reduce((b, s) => Math.max(b, estimate1RM(s.weight, s.reps)), 0)
         const hit = e.sets.some((s) => s.targetReps !== undefined) ? hitAllTargets(e.sets) : null

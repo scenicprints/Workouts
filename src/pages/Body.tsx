@@ -19,6 +19,7 @@ export function Body() {
   const entries = useLiveQuery(() => db.body.orderBy('date').toArray(), [])
   const [editing, setEditing] = useState<BodyEntry | null>(null)
   const [now] = useState(() => Date.now())
+  const daily = useLiveQuery(() => db.daily.orderBy('date').reverse().limit(14).toArray(), []) ?? []
   if (!entries) return null
 
   const todayEntry = entries.find((e) => e.date === today())
@@ -28,6 +29,9 @@ export function Body() {
   const avg7 = weights.filter((w) => w.x >= now - 7 * 86400000)
   const avg = avg7.length ? avg7.reduce((a, w) => a + w.y, 0) / avg7.length : null
   const lastMeasure = [...entries].reverse().find((e) => e.measurements && Object.keys(e.measurements).length > 0)
+  const fats = entries.filter((e) => e.bodyFat !== undefined).map((e) => ({ x: e.date, y: e.bodyFat! }))
+  const latestFat = fats.at(-1)
+  const latestLean = [...entries].reverse().find((e) => e.leanMass !== undefined)
 
   return (
     <div className="stack">
@@ -57,6 +61,47 @@ export function Body() {
         <div className="card">
           <div className="card__title">Bodyweight</div>
           <LineChart points={weights.slice(-90)} />
+        </div>
+      ) : null}
+
+      {latestFat || latestLean ? (
+        <div className="card">
+          <div className="row row--between">
+            <div className="card__title">Body composition</div>
+            <span className="muted small">from your scale</span>
+          </div>
+          <div className="stats" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+            <div className="stat">
+              <div className="stat__value">{latestFat ? `${latestFat.y}%` : '—'}</div>
+              <div className="stat__label">body fat</div>
+            </div>
+            <div className="stat">
+              <div className="stat__value">{latestLean?.leanMass !== undefined ? formatWeight(latestLean.leanMass, unit) : '—'}</div>
+              <div className="stat__label">lean mass</div>
+            </div>
+          </div>
+          {fats.length >= 2 ? <LineChart points={fats.slice(-90)} height={120} /> : null}
+        </div>
+      ) : null}
+
+      {daily.length > 0 ? (
+        <div className="card">
+          <div className="row row--between">
+            <div className="card__title">Last two weeks</div>
+            <span className="muted small">from Health Connect</span>
+          </div>
+          <ul className="list" style={{ gap: 2 }}>
+            {daily.map((d) => (
+              <li key={d.date} className="row row--between small">
+                <span className="muted">{formatDate(d.date)}</span>
+                <span className="mono">
+                  {d.steps !== undefined ? `${d.steps.toLocaleString()} steps` : ''}
+                  {d.sleepMin !== undefined ? ` · ${Math.floor(d.sleepMin / 60)}h ${String(d.sleepMin % 60).padStart(2, '0')} sleep` : ''}
+                  {d.restingHr !== undefined ? ` · ${Math.round(d.restingHr)} bpm` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
@@ -94,6 +139,8 @@ export function Body() {
                   <span className="mono">{e.weight ? formatWeight(e.weight, unit) : ''}</span>
                 </span>
                 <span className="list__meta">
+                  {e.bodyFat !== undefined ? `${e.bodyFat}% fat · ` : ''}
+                  {e.source === 'health' ? 'from scale · ' : ''}
                   {e.feel ? `Felt ${FEELS[e.feel - 1].toLowerCase()}` : ''}
                   {e.measurements && Object.keys(e.measurements).length ? ` · ${Object.keys(e.measurements).length} measurements` : ''}
                   {e.notes ? ` · ${e.notes}` : ''}
@@ -116,7 +163,7 @@ function BodyEditor({ entry, unit, onClose }: { entry: BodyEntry; unit: string; 
 
   async function save() {
     const measurements = Object.fromEntries(Object.entries(draft.measurements ?? {}).filter(([, v]) => v > 0))
-    const clean: BodyEntry = { ...draft, measurements: Object.keys(measurements).length ? measurements : undefined, weight: draft.weight || undefined, notes: draft.notes?.trim() || undefined }
+    const clean: BodyEntry = { ...draft, measurements: Object.keys(measurements).length ? measurements : undefined, weight: draft.weight || undefined, bodyFat: draft.bodyFat || undefined, notes: draft.notes?.trim() || undefined, source: draft.source ?? 'manual' }
     await db.body.put(clean)
     onClose()
   }
@@ -147,7 +194,10 @@ function BodyEditor({ entry, unit, onClose }: { entry: BodyEntry; unit: string; 
             }}
           />
         </label>
-        <NumberField label={`Bodyweight (${unit})`} value={draft.weight ?? 0} onChange={(weight) => setDraft({ ...draft, weight })} step={0.1} />
+        <div className="row">
+          <NumberField label={`Bodyweight (${unit})`} value={draft.weight ?? 0} onChange={(weight) => setDraft({ ...draft, weight })} step={0.1} />
+          <NumberField label="Body fat %" value={draft.bodyFat ?? 0} onChange={(bodyFat) => setDraft({ ...draft, bodyFat })} step={0.1} compact />
+        </div>
         <div className="field">
           <span>How do you feel?</span>
           <div className="segmented">

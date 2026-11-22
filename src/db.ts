@@ -104,6 +104,12 @@ export interface Session {
   planDay?: number
   entries: SessionEntry[]
   notes?: string
+  /** From Health Connect (the watch), filled in after finishing. */
+  hrAvg?: number
+  hrMax?: number
+  calories?: number
+  /** Health Connect record id once the session has been written there. */
+  healthId?: string
 }
 
 export interface BodyEntry {
@@ -111,10 +117,23 @@ export interface BodyEntry {
   /** Local midnight timestamp of the day it was logged. One entry per day. */
   date: number
   weight?: number
+  /** Body fat percentage, e.g. 18.4 */
+  bodyFat?: number
+  /** Lean mass in the app's weight unit. */
+  leanMass?: number
   /** 1 (rough) to 5 (great). */
   feel?: number
   measurements?: Record<string, number>
   notes?: string
+  source?: 'manual' | 'health'
+}
+
+/** One row per local day from Health Connect: steps, sleep and resting heart rate. */
+export interface DailyEntry {
+  date: number
+  steps?: number
+  sleepMin?: number
+  restingHr?: number
 }
 
 export interface Setting {
@@ -128,6 +147,7 @@ export class WorkoutsDB extends Dexie {
   plans!: EntityTable<Plan, 'id'>
   sessions!: EntityTable<Session, 'id'>
   body!: EntityTable<BodyEntry, 'id'>
+  daily!: EntityTable<DailyEntry, 'date'>
   settings!: EntityTable<Setting, 'key'>
 
   constructor(name = 'workouts') {
@@ -163,6 +183,15 @@ export class WorkoutsDB extends Dexie {
           if (seed && !e.pattern) await tx.table('exercises').update(e.id, { pattern: seed[3], compound: seed[4] ?? false, bodyweight: seed[5] ?? false })
         }
       })
+    this.version(3).stores({
+      exercises: '++id, name, muscle, pattern',
+      routines: '++id, name',
+      plans: '++id, active',
+      sessions: '++id, startedAt, finishedAt, routineId, planId',
+      body: '++id, &date',
+      daily: '&date',
+      settings: '&key',
+    })
   }
 }
 
@@ -275,32 +304,34 @@ export async function setSetting(key: string, value: unknown, database: Workouts
 }
 
 export interface ExportBundle {
-  version: 1 | 2
+  version: 1 | 2 | 3
   exportedAt: number
   exercises: Exercise[]
   routines: Routine[]
   plans: Plan[]
   sessions: Session[]
   body?: BodyEntry[]
+  daily?: DailyEntry[]
   settings: Setting[]
 }
 
-const ALL_TABLES = (d: WorkoutsDB) => [d.exercises, d.routines, d.plans, d.sessions, d.body, d.settings]
+const ALL_TABLES = (d: WorkoutsDB) => [d.exercises, d.routines, d.plans, d.sessions, d.body, d.daily, d.settings]
 
 export async function exportAll(database: WorkoutsDB = db): Promise<ExportBundle> {
-  const [exercises, routines, plans, sessions, body, settings] = await Promise.all([
+  const [exercises, routines, plans, sessions, body, daily, settings] = await Promise.all([
     database.exercises.toArray(),
     database.routines.toArray(),
     database.plans.toArray(),
     database.sessions.toArray(),
     database.body.toArray(),
+    database.daily.toArray(),
     database.settings.toArray(),
   ])
-  return { version: 2, exportedAt: Date.now(), exercises, routines, plans, sessions, body, settings }
+  return { version: 3, exportedAt: Date.now(), exercises, routines, plans, sessions, body, daily, settings }
 }
 
 export async function importAll(bundle: ExportBundle, database: WorkoutsDB = db): Promise<void> {
-  if ((bundle.version !== 1 && bundle.version !== 2) || !Array.isArray(bundle.exercises)) throw new Error('Not a Workouts backup file')
+  if (![1, 2, 3].includes(bundle.version) || !Array.isArray(bundle.exercises)) throw new Error('Not a Workouts backup file')
   await database.transaction('rw', ALL_TABLES(database), async () => {
     await Promise.all(ALL_TABLES(database).map((t) => t.clear()))
     await database.exercises.bulkAdd(bundle.exercises)
@@ -308,7 +339,8 @@ export async function importAll(bundle: ExportBundle, database: WorkoutsDB = db)
     await database.plans.bulkAdd((bundle.plans ?? []).map((p) => ({ ...p, cursor: p.cursor ?? 0 })))
     await database.sessions.bulkAdd(bundle.sessions ?? [])
     await database.body.bulkAdd(bundle.body ?? [])
-    await database.settings.bulkAdd((bundle.settings ?? []).filter((s) => !s.key.startsWith('sync.')))
+    await database.daily.bulkAdd(bundle.daily ?? [])
+    await database.settings.bulkAdd((bundle.settings ?? []).filter((s) => !s.key.startsWith('sync.') && !s.key.startsWith('health.')))
   })
 }
 

@@ -18,8 +18,10 @@ export function Home() {
   const next = useLiveQuery(() => nextPlanWorkout(), [])
   const finished = useLiveQuery(() => db.sessions.filter((s) => !!s.finishedAt && s.entries.length > 0).toArray(), [])
   const body = useLiveQuery(() => db.body.orderBy('date').toArray(), []) ?? []
+  const daily = useLiveQuery(() => db.daily.orderBy('date').reverse().limit(2).toArray(), []) ?? []
 
   if (!finished || !exercises) return null
+  const today = daily[0]
 
   const weekly = weeklyStats(finished, 8, now)
   const thisWeek = weekly[weekly.length - 1]
@@ -30,6 +32,7 @@ export function Home() {
   const latestWeight = weights.at(-1)
   const weekAgoWeight = weights.filter((w) => w.x <= now - 7 * 86400000).at(-1)
   const lastFeel = [...body].reverse().find((b) => b.feel)
+  const latestFat = [...body].reverse().find((b) => b.bodyFat !== undefined)
 
   return (
     <div className="stack">
@@ -95,6 +98,23 @@ export function Home() {
         </div>
       </div>
 
+      {today ? (
+        <div className="stats">
+          <div className="stat">
+            <div className="stat__value">{today.steps !== undefined ? today.steps.toLocaleString() : '—'}</div>
+            <div className="stat__label">steps {relativeDay(today.date).toLowerCase()}</div>
+          </div>
+          <div className="stat">
+            <div className="stat__value">{today.sleepMin !== undefined ? `${Math.floor(today.sleepMin / 60)}h ${String(today.sleepMin % 60).padStart(2, '0')}` : '—'}</div>
+            <div className="stat__label">sleep</div>
+          </div>
+          <div className="stat">
+            <div className="stat__value">{today.restingHr !== undefined ? Math.round(today.restingHr) : '—'}</div>
+            <div className="stat__label">resting bpm</div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="card">
         <div className="row row--between">
           <div className="card__title">Weekly volume</div>
@@ -130,6 +150,7 @@ export function Home() {
           <span className="muted small">
             {latestWeight ? `${formatWeight(latestWeight.y, unit)}` : 'no weigh-ins yet'}
             {latestWeight && weekAgoWeight ? ` · ${latestWeight.y - weekAgoWeight.y >= 0 ? '+' : ''}${(latestWeight.y - weekAgoWeight.y).toFixed(1)} vs last week` : ''}
+            {latestFat ? ` · ${latestFat.bodyFat}% fat` : ''}
             {lastFeel ? ` · feel ${lastFeel.feel}/5` : ''}
           </span>
         </div>

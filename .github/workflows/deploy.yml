@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -42,3 +42,60 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  android:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - run: npm run build:native
+      - name: Prepare signing
+        id: signing
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            echo "path=$RUNNER_TEMP/release.p12" >> "$GITHUB_OUTPUT"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No keystore secret; building an unsigned release APK that cannot be installed."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ steps.signing.outputs.path }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/app-release*.apk ../workouts.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workouts-apk
+          path: workouts.apk
+      - name: Publish release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.signing.outputs.signed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v0.2.${{ github.run_number }}
+          name: Android 0.2.${{ github.run_number }}
+          body: |
+            Signed Android build of commit ${{ github.sha }}.
+            Install `workouts.apk` on your phone (allow installs from your browser when asked). Updates install over the previous version.
+          files: workouts.apk
+          make_latest: true

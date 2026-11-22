@@ -15,6 +15,7 @@ Open it on your phone and choose "Add to Home Screen" to install it. It works of
 - **The plan is a sequence, not a calendar.** Finishing a workout moves it one day. Skip or jump to any day yourself; the app never guesses what to do with a missed day.
 - **Body tracking.** Bodyweight with a 7-day average and 30-day change, measurements with deltas, and a quick how-do-you-feel rating.
 - **Compare with a friend through GitHub.** Optional. Each person's summary and backup goes into one file in a private repo, written with a fine-grained token that lives only on the device. The Friends page compares streaks, weekly volume and best lifts. No server, no accounts.
+- **Health Connect and Pixel Watch (Android app).** Imports weight, body fat and lean mass from your scale, heart rate and calories from the watch for each workout, and daily steps, sleep and resting heart rate. Writes finished strength sessions back to Health Connect so they show in Fitbit. The web app cannot do this; the Android build can.
 - **Private by design.** Data lives in IndexedDB in your browser. No analytics. Export and import a JSON backup from Settings.
 - **Out of scope for good:** cardio and GPS, any social feed, likes or comments, nutrition.
 
@@ -49,6 +50,24 @@ $env:WORKOUTS_SYNC_TOKEN = (gh auth token); npm test
 
 `npm run icons` regenerates the PNG app icons from `scripts/make-icons.mjs` (no native dependencies).
 
+## Android app
+
+The same code ships as an Android app through Capacitor, with a small Kotlin plugin (`android/app/src/main/java/com/scenicprints/workouts/HealthConnectPlugin.kt`) that bridges Health Connect. CI builds a signed APK on every push to `main` and attaches it to a GitHub release:
+
+**Download:** https://github.com/scenicprints/Workouts/releases/latest/download/workouts.apk
+
+Install it from the phone's browser, allow installs from that source when asked, then connect Health Connect from Settings. Updates install over the previous version because every build is signed with the same key (kept in GitHub Actions secrets, never in the repo).
+
+To build locally you need a JDK 17+ and the Android SDK:
+
+```powershell
+npm run build:native
+```
+
+```powershell
+cd android; .\gradlew assembleDebug
+```
+
 ## Deploy
 
 Pushing to `main` runs lint, tests and the build, then publishes `dist/` to GitHub Pages via `.github/workflows/deploy.yml`. The app is built with `base: '/Workouts/'`; set `VITE_BASE=/` to build for a root domain.
@@ -64,10 +83,12 @@ src/
   lib/stats.ts       Weekly stats, best lifts, the summary that gets synced
   lib/sync.ts        GitHub contents API push and pull
   lib/plates.ts      Plate calculator
+  lib/health.ts      Health Connect bridge and sync (Android app only)
   lib/format.ts      Dates, durations, weekly streak
   lib/alerts.ts      Beep and vibrate
   hooks/             Rest timer store, settings
-  components/        Layout, rest timer bar, exercise picker, number field, charts, plate calculator
+  components/        Layout, rest timer bar, exercise picker, number field, charts, plate calculator, health settings
+android/             Capacitor Android project with the Kotlin Health Connect plugin
   pages/             Home, Workout, History, Body, More, Generate, Friends, Library, Exercise, Routine, Plan, Settings
   test/              Vitest suites
 ```

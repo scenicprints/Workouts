@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
 import { RestTimerBar } from './RestTimerBar'
 import { unlockAudio } from '../lib/alerts'
+import { useHealthAutoSync } from '../hooks/useHealthAutoSync'
 
 const tabs = [
   { to: '/', label: 'Home', icon: HomeIcon, end: true },
@@ -14,6 +15,7 @@ const tabs = [
 
 export function Layout() {
   const active = useLiveQuery(() => db.sessions.where('finishedAt').equals(0).first(), [])
+  useHealthAutoSync()
   return (
     <div className="app" onPointerDown={unlockAudio}>
       <main className="page">
