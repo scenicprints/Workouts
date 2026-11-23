@@ -114,10 +114,14 @@ export async function installUpdate(): Promise<void> {
   try {
     const { allowed } = await Updater.canInstall()
     if (!allowed) {
+      // Android insists on a one-time switch. Remember that we were mid-update so the download
+      // resumes by itself the moment the app comes back to the foreground with the switch on.
       set({ needsPermission: true })
+      localStorage.setItem(PENDING_KEY, '1')
       await Updater.openInstallSettings()
       return
     }
+    localStorage.removeItem(PENDING_KEY)
     set({ installing: true, needsPermission: false })
     await Updater.download({ url: APK_URL })
   } catch (err) {
@@ -130,6 +134,33 @@ export async function installUpdate(): Promise<void> {
   } finally {
     set({ installing: false })
   }
+}
+
+const PENDING_KEY = 'workouts.update.pending'
+
+/** Call on app resume: if the user just granted the install permission, carry on with the update. */
+export async function resumePendingInstall(): Promise<void> {
+  if (!Capacitor.isNativePlatform() || localStorage.getItem(PENDING_KEY) !== '1') return
+  try {
+    const { allowed } = await Updater.canInstall()
+    if (!allowed) return
+    localStorage.removeItem(PENDING_KEY)
+    set({ needsPermission: false })
+    await installUpdate()
+  } catch {
+    // leave the flag; the next resume or tap tries again
+  }
+}
+
+let resumeHooked = false
+/** Watch for the app returning to the foreground (after the settings screen) once per session. */
+export function watchForResume(): void {
+  if (resumeHooked || !Capacitor.isNativePlatform()) return
+  resumeHooked = true
+  void App.addListener('appStateChange', ({ isActive }) => {
+    if (isActive) void resumePendingInstall()
+  })
+  void resumePendingInstall()
 }
 
 /** Called by the service worker registration on the web. */
