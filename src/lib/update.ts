@@ -1,7 +1,14 @@
 import { useSyncExternalStore } from 'react'
 import { App } from '@capacitor/app'
 import { Browser } from '@capacitor/browser'
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, registerPlugin } from '@capacitor/core'
+
+interface UpdaterPlugin {
+  canInstall(): Promise<{ allowed: boolean }>
+  openInstallSettings(): Promise<void>
+  download(o: { url: string }): Promise<{ bytes: number }>
+}
+const Updater = registerPlugin<UpdaterPlugin>('Updater')
 
 /**
  * Update checks for both builds.
@@ -21,13 +28,17 @@ export interface UpdateState {
   latestName: string | null
   checkedAt: number | null
   checking: boolean
+  /** Android: an APK is being downloaded for install. */
+  installing: boolean
+  /** Android: the OS has not yet allowed this app to install packages. */
+  needsPermission: boolean
   error: string | null
   /** Web only: a fresh service worker is waiting. */
   webUpdateReady: boolean
   reloadWeb: (() => void) | null
 }
 
-let state: UpdateState = { current: 0, currentName: '', latest: null, latestName: null, checkedAt: null, checking: false, error: null, webUpdateReady: false, reloadWeb: null }
+let state: UpdateState = { current: 0, currentName: '', latest: null, latestName: null, checkedAt: null, checking: false, installing: false, needsPermission: false, error: null, webUpdateReady: false, reloadWeb: null }
 const listeners = new Set<() => void>()
 const emit = () => listeners.forEach((l) => l())
 const set = (patch: Partial<UpdateState>) => {
@@ -90,10 +101,35 @@ export async function checkForUpdate(force = false): Promise<UpdateState> {
   return state
 }
 
-/** Open the APK in the system browser so Android downloads it and offers to install over the current app. */
+/**
+ * Android: download the APK into the app cache and open the installer; the file is deleted on the
+ * next launch so nothing accumulates. Falls back to the browser if the native updater is missing.
+ */
 export async function installUpdate(): Promise<void> {
-  if (Capacitor.isNativePlatform()) await Browser.open({ url: APK_URL })
-  else window.open(APK_URL, '_blank', 'noopener')
+  if (!Capacitor.isNativePlatform()) {
+    window.open(APK_URL, '_blank', 'noopener')
+    return
+  }
+  set({ error: null })
+  try {
+    const { allowed } = await Updater.canInstall()
+    if (!allowed) {
+      set({ needsPermission: true })
+      await Updater.openInstallSettings()
+      return
+    }
+    set({ installing: true, needsPermission: false })
+    await Updater.download({ url: APK_URL })
+  } catch (err) {
+    set({ error: (err as Error).message })
+    try {
+      await Browser.open({ url: APK_URL })
+    } catch {
+      // nothing more we can do
+    }
+  } finally {
+    set({ installing: false })
+  }
 }
 
 /** Called by the service worker registration on the web. */

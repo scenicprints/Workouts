@@ -24,8 +24,8 @@ export function UpdateBanner() {
         Update available: {s.latestName}
         {s.currentName ? <span className="muted"> (you have {s.currentName})</span> : null}
       </span>
-      <button type="button" className="btn btn--sm btn--primary btn--pill" onClick={() => installUpdate()}>
-        Update
+      <button type="button" className="btn btn--sm btn--primary btn--pill" onClick={() => installUpdate()} disabled={s.installing}>
+        {s.installing ? 'Downloading…' : 'Update'}
       </button>
     </div>
   )

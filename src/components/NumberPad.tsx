@@ -1,4 +1,5 @@
 import { useState, useSyncExternalStore } from 'react'
+import { Delete, X } from 'lucide-react'
 import { closePad, getPadState, subscribePad, type PadRequest } from '../lib/pad'
 
 function format(v: number): string {
@@ -47,44 +48,44 @@ function PadSheet({ req }: { req: PadRequest }) {
   const step = req.step ?? 1
 
   return (
-    <div className="pad" role="dialog" aria-label={`Enter ${req.label}`}>
-      <div className="pad__head">
+    <div className="keypad" role="dialog" aria-label={`Enter ${req.label}`}>
+      <div className="keypad__head">
         <div>
-          <div className="pad__label">{req.label}</div>
-          <div className="pad__value">
+          <div className="keypad__label">{req.label}</div>
+          <div className="keypad__value">
             {text === '' ? '0' : text}
-            {req.unit ? <span className="pad__unit">{req.unit}</span> : null}
+            {req.unit ? <span className="keypad__unit">{req.unit}</span> : null}
           </div>
         </div>
-        <button type="button" className="pad__close" onClick={closePad} aria-label="Close keypad">
-          ✕
+        <button type="button" className="keypad__close" onClick={closePad} aria-label="Close keypad">
+          <X size={18} />
         </button>
       </div>
-      <div className="pad__grid">
+      <div className="keypad__grid">
         {['7', '8', '9', '4', '5', '6', '1', '2', '3'].map((k) => (
-          <button key={k} type="button" className="pad__key" onClick={() => typeKey(k)}>
+          <button key={k} type="button" className="keypad__key" onClick={() => typeKey(k)}>
             {k}
           </button>
         ))}
-        <button type="button" className="pad__key" onClick={() => typeKey('.')} disabled={!req.allowDecimal}>
+        <button type="button" className="keypad__key" onClick={() => typeKey('.')} disabled={!req.allowDecimal}>
           .
         </button>
-        <button type="button" className="pad__key" onClick={() => typeKey('0')}>
+        <button type="button" className="keypad__key" onClick={() => typeKey('0')}>
           0
         </button>
-        <button type="button" className="pad__key" onClick={backspace} aria-label="Backspace">
-          ⌫
+        <button type="button" className="keypad__key" onClick={backspace} aria-label="Backspace">
+          <Delete size={22} />
         </button>
-        <div className="pad__side">
-          <button type="button" className="pad__key pad__key--chip" onClick={() => nudge(-step)}>
+        <div className="keypad__side">
+          <button type="button" className="keypad__key keypad__key--chip" onClick={() => nudge(-step)}>
             −{format(step)}
           </button>
-          <button type="button" className="pad__key pad__key--chip" onClick={() => nudge(step)}>
+          <button type="button" className="keypad__key keypad__key--chip" onClick={() => nudge(step)}>
             +{format(step)}
           </button>
           <button
             type="button"
-            className="pad__key pad__key--primary"
+            className="keypad__key keypad__key--primary"
             onClick={() => {
               if (req.primary) req.primary.onPress()
               else closePad()

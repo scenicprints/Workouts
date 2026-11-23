@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { Check, MoreHorizontal, Plus } from 'lucide-react'
 import { db, type Exercise, type Session, type SessionEntry, type SetEntry, type Unit } from '../db'
 import { useDefaultRest, useExerciseMap, useUnit } from '../hooks/useSettings'
 import { restTimer } from '../hooks/useRestTimer'
@@ -226,7 +227,7 @@ function ActiveWorkout({ session }: { session: Session }) {
           )
         })}
         <button type="button" className="exbar__tab exbar__tab--add" onClick={() => setPicking('add')} aria-label="Add exercise">
-          +
+          <Plus size={22} />
         </button>
       </div>
 
@@ -311,8 +312,8 @@ function ExercisePanel({ entry, exercise, unit, previous, isLast, onLog, onUpdat
             {prevWork.length ? ` · last ${prevWork.map((s) => `${s.reps}×${s.weight}`).join(', ')}` : ''}
           </span>
         </div>
-        <button type="button" className="btn btn--ghost btn--sm" onClick={() => setMenu((m) => !m)} aria-label="Exercise options" aria-expanded={menu}>
-          ⋯
+        <button type="button" className="btn btn--icon" onClick={() => setMenu((m) => !m)} aria-label="Exercise options" aria-expanded={menu}>
+          <MoreHorizontal size={20} />
         </button>
       </div>
       {menu ? (
@@ -340,6 +341,7 @@ function ExercisePanel({ entry, exercise, unit, previous, isLast, onLog, onUpdat
       <div className="setgrid" role="table">
         <div className="setgrid__head" role="row">
           <span>Set</span>
+          <span>Previous</span>
           <span>{unit}</span>
           <span>Reps</span>
           <span />
@@ -348,7 +350,7 @@ function ExercisePanel({ entry, exercise, unit, previous, isLast, onLog, onUpdat
           const isWarm = set.kind === 'warmup'
           const { label, prev } = labels[si]
           const isNext = si === nextUp
-          const hint = prev ? `last ${prev.reps} × ${prev.weight}` : set.targetWeight ? `target ${set.targetReps} × ${set.targetWeight}` : isWarm ? 'warm-up' : 'first time'
+          const hint = prev ? `${formatNum(prev.weight)} × ${prev.reps}` : set.targetWeight ? `${formatNum(set.targetWeight)} × ${set.targetReps}` : isWarm ? 'warm-up' : '—'
           const openReps = () =>
             openPad({
               value: set.reps,
@@ -376,22 +378,20 @@ function ExercisePanel({ entry, exercise, unit, previous, isLast, onLog, onUpdat
             })
           return (
             <div key={si} className={`setgrid__row${set.done ? ' setgrid__row--done' : ''}${isNext ? ' setgrid__row--next' : ''}${isWarm ? ' setgrid__row--warm' : ''}`} role="row">
-              <button type="button" className="setgrid__lead" onClick={() => (prev ? onUpdate(si, { weight: prev.weight, reps: prev.reps }) : onRemoveSet(si))} title={prev ? 'Use last time' : 'Remove set'}>
-                <span className="setgrid__num">{label}</span>
-                <span className="setgrid__hint">{hint}</span>
+              <button type="button" className="setgrid__num" onClick={() => onRemoveSet(si)} title="Remove set" aria-label={`Remove set ${label}`}>
+                {label}
+              </button>
+              <button type="button" className="setgrid__prev" onClick={() => prev && onUpdate(si, { weight: prev.weight, reps: prev.reps })} disabled={!prev} title={prev ? 'Use last time' : undefined}>
+                {hint}
               </button>
               <button type="button" className="setgrid__val" onClick={openWeight} aria-label={`Set ${label} weight`}>
                 {formatNum(set.weight)}
-                <span className="setgrid__unit">{unit}</span>
               </button>
               <button type="button" className="setgrid__val" onClick={openReps} aria-label={`Set ${label} reps`}>
                 {set.reps}
-                <span className="setgrid__unit">reps</span>
               </button>
               <button type="button" className="set__check" aria-pressed={set.done} onClick={() => onLog(si)} aria-label={set.done ? 'Mark set not done' : 'Log set'}>
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="m5 12 5 5L20 7" />
-                </svg>
+                <Check size={22} strokeWidth={3} />
               </button>
             </div>
           )

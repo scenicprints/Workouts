@@ -8,7 +8,7 @@ describe('update checks', () => {
     expect(buildNumberFromTag('nightly')).toBeNull()
   })
   it('only flags newer builds', () => {
-    const base = { current: 10, currentName: '0.2.10', latest: 10, latestName: '0.2.10', checkedAt: 1, checking: false, error: null, webUpdateReady: false, reloadWeb: null }
+    const base = { current: 10, currentName: '0.2.10', latest: 10, latestName: '0.2.10', checkedAt: 1, checking: false, installing: false, needsPermission: false, error: null, webUpdateReady: false, reloadWeb: null }
     expect(updateAvailable(base)).toBe(false)
     expect(updateAvailable({ ...base, latest: 11 })).toBe(true)
     expect(updateAvailable({ ...base, current: 0, latest: 11 })).toBe(false)

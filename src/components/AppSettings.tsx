@@ -20,15 +20,17 @@ export function AppSettings() {
           </p>
           <div className="row">
             {updateAvailable(s) ? (
-              <button type="button" className="btn btn--primary" onClick={() => installUpdate()}>
-                Download update
+              <button type="button" className="btn btn--primary" onClick={() => installUpdate()} disabled={s.installing}>
+                {s.installing ? 'Downloading…' : 'Install update'}
               </button>
             ) : null}
             <button type="button" className="btn btn--ghost" onClick={() => checkForUpdate(true)} disabled={s.checking}>
               {s.checking ? 'Checking…' : 'Check for updates'}
             </button>
           </div>
-          <p className="muted small">Updates download from GitHub Releases and install over this version. Your data stays on the phone.</p>
+          <p className="muted small">
+            {s.needsPermission ? 'Android needs you to allow this app to install updates. Flip the switch on the screen that opened, then come back and tap Install update.' : 'Updates download into the app, install over this version, and the file is removed afterwards. Nothing lands in Downloads and your data stays put.'}
+          </p>
         </div>
       ) : (
         <p className="muted small">
