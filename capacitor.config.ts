@@ -7,9 +7,9 @@ const config: CapacitorConfig = {
   android: {
     // Keep the web view out from under the status and navigation bars.
     adjustMarginsForEdgeToEdge: 'force',
-    backgroundColor: '#f6f5f2',
+    backgroundColor: '#0e0f12',
   },
-  backgroundColor: '#f6f5f2',
+  backgroundColor: '#0e0f12',
 }
 
 export default config

@@ -100,22 +100,22 @@ export function History() {
             </div>
             <div className="hcard__figs">
               <div className="hcard__fig">
-                <span>{sessionSetCount(s)}</span>
+                <span className="c-lime">{sessionSetCount(s)}</span>
                 <span>sets</span>
               </div>
               <div className="hcard__fig">
-                <span>{Math.round(sessionVolume(s)).toLocaleString()}</span>
+                <span className="c-sky">{Math.round(sessionVolume(s)).toLocaleString()}</span>
                 <span>{unit}</span>
               </div>
               {s.hrAvg !== undefined ? (
                 <div className="hcard__fig">
-                  <span>{Math.round(s.hrAvg)}</span>
+                  <span className="c-pink">{Math.round(s.hrAvg)}</span>
                   <span>avg bpm</span>
                 </div>
               ) : null}
               {s.calories !== undefined ? (
                 <div className="hcard__fig">
-                  <span>{Math.round(s.calories)}</span>
+                  <span className="c-coral">{Math.round(s.calories)}</span>
                   <span>kcal</span>
                 </div>
               ) : null}

@@ -86,7 +86,7 @@ export function Settings() {
       <div className="card">
         <div className="card__title">Look</div>
         <div className="segmented" role="group" aria-label="Theme">
-          {(['light', 'dark', 'system'] as const).map((t) => (
+          {(['dark', 'light', 'system'] as const).map((t) => (
             <button key={t} type="button" aria-pressed={theme === t} onClick={() => setSetting('theme', t)}>
               {t[0].toUpperCase() + t.slice(1)}
             </button>

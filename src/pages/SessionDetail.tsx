@@ -37,11 +37,11 @@ export function SessionDetail() {
       </div>
       <div className="stats">
         <div className="stat">
-          <div className="stat__value">{sessionSetCount(session)}</div>
+          <div className="stat__value c-lime">{sessionSetCount(session)}</div>
           <div className="stat__label">sets</div>
         </div>
         <div className="stat">
-          <div className="stat__value">{Math.round(sessionVolume(session)).toLocaleString()}</div>
+          <div className="stat__value c-sky">{Math.round(sessionVolume(session)).toLocaleString()}</div>
           <div className="stat__label">{unit} volume</div>
         </div>
         <div className="stat">
@@ -52,15 +52,15 @@ export function SessionDetail() {
       {session.hrAvg !== undefined || session.calories !== undefined ? (
         <div className="stats">
           <div className="stat">
-            <div className="stat__value">{session.hrAvg !== undefined ? Math.round(session.hrAvg) : '—'}</div>
+            <div className="stat__value c-pink">{session.hrAvg !== undefined ? Math.round(session.hrAvg) : '—'}</div>
             <div className="stat__label">avg bpm</div>
           </div>
           <div className="stat">
-            <div className="stat__value">{session.hrMax !== undefined ? Math.round(session.hrMax) : '—'}</div>
+            <div className="stat__value c-pink">{session.hrMax !== undefined ? Math.round(session.hrMax) : '—'}</div>
             <div className="stat__label">peak bpm</div>
           </div>
           <div className="stat">
-            <div className="stat__value">{session.calories !== undefined ? Math.round(session.calories) : '—'}</div>
+            <div className="stat__value c-coral">{session.calories !== undefined ? Math.round(session.calories) : '—'}</div>
             <div className="stat__label">kcal from watch</div>
           </div>
         </div>

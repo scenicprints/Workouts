@@ -47,7 +47,7 @@ export function Body() {
         <div className="bigfig">
           <div>
             <div className="section--eyebrow section" style={{ margin: '0 0 6px' }}>Weight</div>
-            <div className="bigfig__value">
+            <div className="bigfig__value c-coral">
               {latest ? latest.y : '—'} <span className="bigfig__unit">{unit}</span>
             </div>
           </div>
@@ -61,20 +61,26 @@ export function Body() {
             </div>
           ) : null}
         </div>
-        {weights.length >= 2 ? <LineChart points={weights.slice(-90)} height={130} /> : <p className="muted small">Log a few weigh-ins, or connect Health Connect, to see the trend.</p>}
+        {weights.length >= 2 ? (
+          <div className="chart--coral">
+            <LineChart points={weights.slice(-90)} height={130} />
+          </div>
+        ) : (
+          <p className="muted small">Log a few weigh-ins, or connect Health Connect, to see the trend.</p>
+        )}
       </div>
 
       <div className="stats">
         <div className="stat">
-          <div className="stat__value">{latestFat ? `${latestFat.y}%` : '—'}</div>
+          <div className="stat__value c-violet">{latestFat ? `${latestFat.y}%` : '—'}</div>
           <div className="stat__label">Body fat</div>
         </div>
         <div className="stat">
-          <div className="stat__value">{latestLean?.leanMass !== undefined ? latestLean.leanMass : '—'}</div>
+          <div className="stat__value c-sky">{latestLean?.leanMass !== undefined ? latestLean.leanMass : '—'}</div>
           <div className="stat__label">Lean {unit}</div>
         </div>
         <div className="stat">
-          <div className="stat__value">{todayHealth?.restingHr !== undefined ? Math.round(todayHealth.restingHr) : '—'}</div>
+          <div className="stat__value c-pink">{todayHealth?.restingHr !== undefined ? Math.round(todayHealth.restingHr) : '—'}</div>
           <div className="stat__label">Resting bpm</div>
         </div>
       </div>

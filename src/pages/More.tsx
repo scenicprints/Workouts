@@ -26,10 +26,10 @@ export function More() {
   }, [])
   const sync = loadSyncConfig()
 
-  const row = (to: string, Icon: typeof Calendar, title: string, value?: string) => (
-    <li key={to}>
+  const row = (to: string, Icon: typeof Calendar, title: string, value?: string, tint = 't-lime') => (
+    <li key={to + title}>
       <Link className="list__item" to={to} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <span className="list__icon">
+        <span className={`list__icon ${tint}`}>
           <Icon size={18} />
         </span>
         <span className="grow list__title" style={{ fontWeight: 500 }}>
@@ -56,26 +56,26 @@ export function More() {
       <div>
         <div className="section section--eyebrow">Training</div>
         <ul className="list">
-          {row(counts?.plan ? `/plans/${counts.plan.id}` : '/library/plans', Calendar, 'Plan', counts?.plan?.name ?? 'None')}
-          {row('/library/routines', ListChecks, 'Routines', counts ? String(counts.routines) : undefined)}
-          {row('/library/exercises', Dumbbell, 'Exercises', counts ? String(counts.exercises) : undefined)}
-          {row('/generate', Sparkles, 'Generate a program')}
+          {row(counts?.plan ? `/plans/${counts.plan.id}` : '/library/plans', Calendar, 'Plan', counts?.plan?.name ?? 'None', 't-violet')}
+          {row('/library/routines', ListChecks, 'Routines', counts ? String(counts.routines) : undefined, 't-lime')}
+          {row('/library/exercises', Dumbbell, 'Exercises', counts ? String(counts.exercises) : undefined, 't-lime')}
+          {row('/generate', Sparkles, 'Generate a program', undefined, 't-amber')}
         </ul>
       </div>
 
       <div>
         <div className="section section--eyebrow">Connected</div>
         <ul className="list">
-          {row('/settings', HeartPulse, 'Health Connect', counts?.health ? (counts.lastSync ? `Synced ${relativeDay(counts.lastSync).toLowerCase()}` : 'On') : 'Off')}
-          {row('/friends', Users, 'Friends', sync ? sync.name : 'Not set up')}
+          {row('/settings', HeartPulse, 'Health Connect', counts?.health ? (counts.lastSync ? `Synced ${relativeDay(counts.lastSync).toLowerCase()}` : 'On') : 'Off', 't-pink')}
+          {row('/friends', Users, 'Friends', sync ? sync.name : 'Not set up', 't-sky')}
         </ul>
       </div>
 
       <div>
         <div className="section section--eyebrow">App</div>
         <ul className="list">
-          {row('/settings', SettingsIcon, 'Settings', `${unit} · timer ${timerOn ? 'on' : 'off'}`)}
-          {row('/settings', Download, 'Updates', update.currentName ? `${update.currentName}${update.latest !== null && update.latest > update.current ? ' · update ready' : ' · latest'}` : 'Web')}
+          {row('/settings', SettingsIcon, 'Settings', `${unit} · timer ${timerOn ? 'on' : 'off'}`, 't-violet')}
+          {row('/settings', Download, 'Updates', update.currentName ? `${update.currentName}${update.latest !== null && update.latest > update.current ? ' · update ready' : ' · latest'}` : 'Web', 't-coral')}
         </ul>
       </div>
     </div>

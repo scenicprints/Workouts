@@ -133,7 +133,7 @@ export function Home() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="section--eyebrow section" style={{ margin: 0 }}>This week</div>
-          <div className="display" style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1 }}>
+          <div className="display c-sky" style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1 }}>
             {short(thisWeek?.volume ?? 0)} <span className="muted" style={{ fontSize: '0.85rem', fontWeight: 500, letterSpacing: 0 }}>{unit}</span>
           </div>
           <div className="bars" aria-label="Weekly volume, last 8 weeks">
@@ -144,11 +144,13 @@ export function Home() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
-            <div className="display" style={{ fontSize: '1.7rem', fontWeight: 700, lineHeight: 1 }}>{thisWeek?.sessions ?? 0}</div>
-            <div className="muted small">workouts · {streak} week streak</div>
+            <div className="display c-lime" style={{ fontSize: '1.7rem', fontWeight: 700, lineHeight: 1 }}>{thisWeek?.sessions ?? 0}</div>
+            <div className="muted small">
+              workouts · <span className="c-amber">{streak} wk streak</span>
+            </div>
           </div>
           <Link to="/body" className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
-            <div className="display" style={{ fontSize: '1.7rem', fontWeight: 700, lineHeight: 1 }}>{latestWeight ? latestWeight.y : '—'}</div>
+            <div className="display c-coral" style={{ fontSize: '1.7rem', fontWeight: 700, lineHeight: 1 }}>{latestWeight ? latestWeight.y : '—'}</div>
             <div className="muted small">
               {unit} body{change !== null ? <span className={change <= 0 ? ' good' : ''}> · {change > 0 ? '+' : ''}{change.toFixed(1)}</span> : ''}
             </div>
@@ -176,7 +178,7 @@ export function Home() {
                       {relativeDay(s.finishedAt!)} · {sessionSetCount(s)} sets · {formatDuration(s.finishedAt! - s.startedAt)}
                     </span>
                   </span>
-                  <span className="mono" style={{ fontWeight: 600 }}>
+                  <span className="mono c-sky" style={{ fontWeight: 600 }}>
                     {Math.round(sessionVolume(s)).toLocaleString()} <span className="muted small">{unit}</span>
                   </span>
                 </Link>

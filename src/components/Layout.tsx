@@ -10,11 +10,11 @@ import { useHealthAutoSync } from '../hooks/useHealthAutoSync'
 import { useApplyTheme } from '../hooks/useTheme'
 
 const tabs = [
-  { to: '/', label: 'Home', icon: House, end: true },
-  { to: '/workout', label: 'Workout', icon: Dumbbell },
-  { to: '/history', label: 'History', icon: History },
-  { to: '/body', label: 'Body', icon: PersonStanding },
-  { to: '/more', label: 'More', icon: MoreHorizontal },
+  { to: '/', label: 'Home', icon: House, end: true, cls: 'tab--home' },
+  { to: '/workout', label: 'Workout', icon: Dumbbell, cls: 'tab--workout' },
+  { to: '/history', label: 'History', icon: History, cls: 'tab--history' },
+  { to: '/body', label: 'Body', icon: PersonStanding, cls: 'tab--body' },
+  { to: '/more', label: 'More', icon: MoreHorizontal, cls: 'tab--more' },
 ]
 
 export function Layout() {
@@ -31,7 +31,7 @@ export function Layout() {
       <NumberPad />
       <nav className="tabbar" aria-label="Main">
         {tabs.map((t) => (
-          <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => `tab${isActive ? ' tab--active' : ''}`}>
+          <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => `tab ${t.cls}${isActive ? ' tab--active' : ''}`}>
             <span className="tab__icon">
               <t.icon size={24} strokeWidth={2} aria-hidden="true" />
               {t.to === '/workout' && active ? <span className="tab__dot" aria-label="Workout in progress" /> : null}

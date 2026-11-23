@@ -7,10 +7,10 @@ import { db } from '../db'
 export type ThemeChoice = 'light' | 'dark' | 'system'
 
 export function useThemeChoice(): ThemeChoice {
-  return useLiveQuery(async () => ((await db.settings.get('theme'))?.value as ThemeChoice | undefined) ?? 'light', [], 'light' as ThemeChoice)
+  return useLiveQuery(async () => ((await db.settings.get('theme'))?.value as ThemeChoice | undefined) ?? 'dark', [], 'dark' as ThemeChoice)
 }
 
-/** Applies the chosen theme to <html data-theme> and keeps the Android bars in step. Light is the default. */
+/** Applies the chosen theme to <html data-theme> and keeps the Android bars in step. Dark is the default. */
 export function useApplyTheme(): void {
   const choice = useThemeChoice()
   useEffect(() => {
@@ -18,7 +18,7 @@ export function useApplyTheme(): void {
     const apply = () => {
       const dark = choice === 'dark' || (choice === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
       root.dataset.theme = dark ? 'dark' : 'light'
-      const color = dark ? '#0b0b0c' : '#f6f5f2'
+      const color = dark ? '#0e0f12' : '#f6f5f2'
       document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color)
       if (Capacitor.isNativePlatform()) {
         StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => {})
