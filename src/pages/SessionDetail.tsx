@@ -8,6 +8,7 @@ import { estimate1RM, hitAllTargets, sessionSetCount, sessionVolume } from '../l
 import { formatDateTime, formatDuration, formatWeight } from '../lib/format'
 import { closePad, openPad } from '../lib/pad'
 import { ExercisePicker } from '../components/ExercisePicker'
+import { ReadinessCard } from '../components/Readiness'
 import { groupEntries } from '../lib/superset'
 
 export function SessionDetail() {
@@ -106,6 +107,8 @@ export function SessionDetail() {
         </div>
       ) : null}
 
+      {session.readiness ? <ReadinessCard readiness={session.readiness} title="Readiness at the start" /> : null}
+
       {blocks.map((block) => (
         <div className="card" key={block.indices.join('-')}>
           {block.group ? <div className="section--eyebrow section">Superset</div> : null}
@@ -118,6 +121,7 @@ export function SessionDetail() {
                 <div className="row row--between">
                   <h3 style={{ margin: 0 }}>
                     <Link to={`/exercises/${e.exerciseId}`}>{exercises?.get(e.exerciseId)?.name ?? 'Exercise'}</Link>
+                    {e.note ? <span className="muted small" style={{ display: 'block', fontWeight: 400 }}>{e.note}</span> : null}
                   </h3>
                   {editing ? (
                     <button type="button" className="btn btn--icon" onClick={() => removeExercise(ei)} aria-label="Remove exercise">

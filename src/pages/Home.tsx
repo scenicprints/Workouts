@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
 import { useExerciseMap, useUnit } from '../hooks/useSettings'
-import { nextPlanWorkout, skipPlanDay, startRoutineSession } from '../lib/sessions'
+import { currentReadiness, nextPlanWorkout, skipPlanDay, startRoutineSession } from '../lib/sessions'
+import { readinessEffect } from '../lib/readiness'
 import { sessionSetCount, sessionVolume } from '../lib/progression'
 import { formatDuration, relativeDay, weeklyStreak } from '../lib/format'
 import { weeklyStats } from '../lib/stats'
@@ -27,6 +28,7 @@ export function Home() {
   const [now] = useState(() => Date.now())
   const active = useLiveQuery(() => db.sessions.where('finishedAt').equals(0).first(), [])
   const next = useLiveQuery(() => nextPlanWorkout(), [])
+  const readiness = useLiveQuery(() => currentReadiness(unit), [unit])
   const finished = useLiveQuery(() => db.sessions.filter((s) => !!s.finishedAt && s.entries.length > 0).toArray(), [])
   const body = useLiveQuery(() => db.body.orderBy('date').toArray(), []) ?? []
   const name = useLiveQuery(async () => ((await db.settings.get('name'))?.value as string | undefined) ?? '', [], '')
@@ -80,6 +82,11 @@ export function Home() {
                 {next.routine.items.length} exercises · {next.routine.items.reduce((a, i) => a + i.sets, 0)} sets
                 {next.isDeload ? ' · deload' : ''}
               </div>
+              {readiness ? (
+                <div className="hero__meta">
+                  Readiness {readiness.level} {readiness.score} · {readinessEffect({ ...readiness, earlyDeload: readiness.rules.deload && !next.isDeload })}
+                </div>
+              ) : null}
             </div>
             <span className="pill pill--accent">{next.label}</span>
           </div>

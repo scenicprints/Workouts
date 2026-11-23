@@ -10,7 +10,7 @@ interface HealthConnectPlugin {
   hasPermissions(): Promise<{ granted: boolean; count: number }>
   requestHealthPermissions(): Promise<{ granted: boolean; count: number }>
   readBody(o: { since: number }): Promise<{ records: { type: 'weight' | 'fat' | 'lean'; time: number; value: number }[] }>
-  readDaily(o: { since: number }): Promise<{ days: { date: number; steps?: number; sleepMin?: number; restingHr?: number }[] }>
+  readDaily(o: { since: number }): Promise<{ days: { date: number; steps?: number; sleepMin?: number; restingHr?: number; kcal?: number; protein?: number }[] }>
   readSessionVitals(o: { start: number; end: number }): Promise<{ hrAvg?: number; hrMax?: number; calories?: number }>
   writeSession(o: { start: number; end: number; title: string; notes?: string }): Promise<{ id: string }>
 }
@@ -104,8 +104,8 @@ export async function syncHealth(options: { full?: boolean } = {}): Promise<Heal
     const since = lastSync ? lastSync - 2 * DAY : now - 90 * DAY
     const { days } = await HealthConnect.readDaily({ since })
     const rows: DailyEntry[] = days
-      .filter((d) => d.steps !== undefined || d.sleepMin !== undefined || d.restingHr !== undefined)
-      .map((d) => ({ date: dayStart(d.date), steps: d.steps, sleepMin: d.sleepMin, restingHr: d.restingHr }))
+      .filter((d) => d.steps !== undefined || d.sleepMin !== undefined || d.restingHr !== undefined || d.kcal !== undefined || d.protein !== undefined)
+      .map((d) => ({ date: dayStart(d.date), steps: d.steps, sleepMin: d.sleepMin, restingHr: d.restingHr, kcal: d.kcal, protein: d.protein }))
     if (rows.length) await db.daily.bulkPut(rows)
     report.daily = rows.length
   }

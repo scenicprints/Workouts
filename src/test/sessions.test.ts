@@ -176,3 +176,72 @@ describe('session lifecycle', () => {
     expect((await database.sessions.get(next))!.entries[0].sets[0].targetWeight).toBe(55)
   })
 })
+
+describe('readiness at session start', () => {
+  const DAY = 86400000
+  async function cleanSession(routine: Awaited<ReturnType<typeof makeRoutine>>) {
+    const id = await sessions.startRoutineSession(routine, { unit: 'kg', readiness: false })
+    const s = (await database.sessions.get(id))!
+    s.entries[0].sets = s.entries[0].sets.map((x) => ({ ...x, done: true }))
+    await database.sessions.update(id, { entries: s.entries })
+    await sessions.finishSession(id)
+  }
+  async function watchWeek(f: (ago: number) => { restingHr: number; sleepMin: number }) {
+    const now = Date.now()
+    await database.daily.clear()
+    await database.daily.bulkPut(Array.from({ length: 28 }, (_, ago) => ({ date: now - ago * DAY - 1000, ...f(ago) })))
+  }
+
+  it('explains every target with a note and records the read on the session', async () => {
+    const routine = await makeRoutine()
+    await cleanSession(routine)
+    await watchWeek(() => ({ restingHr: 55, sleepMin: 7.5 * 60 }))
+    const id = await sessions.startRoutineSession(routine, { unit: 'kg' })
+    const s = (await database.sessions.get(id))!
+    expect(s.readiness).toMatchObject({ level: 'green', score: 100 })
+    expect(s.entries[0].note).toBe('+2.5 kg after a clean session')
+    expect(s.entries[0].sets[0].targetWeight).toBe(62.5)
+  })
+
+  it('holds a compound after a clean session when recovery is amber', async () => {
+    const routine = await makeRoutine()
+    await cleanSession(routine)
+    await watchWeek((ago) => ({ restingHr: ago < 7 ? 61 : 55, sleepMin: 7.5 * 60 }))
+    const id = await sessions.startRoutineSession(routine, { unit: 'kg' })
+    const s = (await database.sessions.get(id))!
+    expect(s.readiness?.level).toBe('amber')
+    expect(s.entries[0].sets[0].targetWeight).toBe(60)
+    expect(s.entries[0].note).toBe('Held: recovery amber')
+    expect(s.entries[0].sets).toHaveLength(3)
+  })
+
+  it('drops a set when red, and deloads after two red weeks', async () => {
+    const routine = await makeRoutine()
+    await cleanSession(routine)
+    await watchWeek((ago) => ({ restingHr: ago < 7 ? 64 : 55, sleepMin: ago < 7 ? 5.5 * 60 : 7.5 * 60 }))
+    let id = await sessions.startRoutineSession(routine, { unit: 'kg' })
+    let s = (await database.sessions.get(id))!
+    expect(s.readiness).toMatchObject({ level: 'red' })
+    expect(s.readiness?.earlyDeload).toBeUndefined()
+    expect(s.entries[0].sets).toHaveLength(2)
+    expect(s.entries[0].sets[0].targetWeight).toBe(60)
+    await sessions.discardSession(id)
+
+    await watchWeek((ago) => ({ restingHr: ago < 14 ? 64 : 55, sleepMin: ago < 14 ? 5.5 * 60 : 7.5 * 60 }))
+    id = await sessions.startRoutineSession(routine, { unit: 'kg' })
+    s = (await database.sessions.get(id))!
+    expect(s.readiness?.earlyDeload).toBe(true)
+    expect(s.entries[0].sets).toHaveLength(2)
+    expect(s.entries[0].sets[0].targetWeight).toBe(55)
+    expect(s.entries[0].note).toBe('Deload at 90%: two red weeks')
+  })
+
+  it('leaves everything alone when there is no data to read', async () => {
+    const routine = await makeRoutine()
+    await cleanSession(routine)
+    const id = await sessions.startRoutineSession(routine, { unit: 'kg' })
+    const s = (await database.sessions.get(id))!
+    expect(s.readiness).toBeUndefined()
+    expect(s.entries[0].sets[0].targetWeight).toBe(62.5)
+  })
+})

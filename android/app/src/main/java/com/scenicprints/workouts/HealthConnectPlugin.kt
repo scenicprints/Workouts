@@ -9,6 +9,7 @@ import androidx.health.connect.client.records.BodyFatRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.LeanBodyMassRecord
+import androidx.health.connect.client.records.NutritionRecord
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
@@ -55,6 +56,7 @@ class HealthConnectPlugin : Plugin() {
         HealthPermission.getReadPermission(HeartRateRecord::class),
         HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
         HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
+        HealthPermission.getReadPermission(NutritionRecord::class),
         HealthPermission.getWritePermission(ExerciseSessionRecord::class),
     )
 
@@ -161,7 +163,7 @@ class HealthConnectPlugin : Plugin() {
         }
     }
 
-    /** Daily steps, sleep minutes and resting heart rate, one bucket per local day. */
+    /** Daily steps, sleep minutes, resting heart rate and calories and protein eaten, one bucket per local day. */
     @PluginMethod
     fun readDaily(call: PluginCall) {
         val since = Instant.ofEpochMilli(call.getLong("since") ?: 0L)
@@ -173,7 +175,13 @@ class HealthConnectPlugin : Plugin() {
                 val end = LocalDate.now(zone).plusDays(1).atStartOfDay()
                 val resp = c.aggregateGroupByPeriod(
                     AggregateGroupByPeriodRequest(
-                        metrics = setOf(StepsRecord.COUNT_TOTAL, SleepSessionRecord.SLEEP_DURATION_TOTAL, RestingHeartRateRecord.BPM_AVG),
+                        metrics = setOf(
+                            StepsRecord.COUNT_TOTAL,
+                            SleepSessionRecord.SLEEP_DURATION_TOTAL,
+                            RestingHeartRateRecord.BPM_AVG,
+                            NutritionRecord.ENERGY_TOTAL,
+                            NutritionRecord.PROTEIN_TOTAL,
+                        ),
                         timeRangeFilter = TimeRangeFilter.between(start, end),
                         timeRangeSlicer = Period.ofDays(1),
                     ),
@@ -185,6 +193,8 @@ class HealthConnectPlugin : Plugin() {
                     bucket.result[StepsRecord.COUNT_TOTAL]?.let { o.put("steps", it) }
                     bucket.result[SleepSessionRecord.SLEEP_DURATION_TOTAL]?.let { o.put("sleepMin", it.toMinutes()) }
                     bucket.result[RestingHeartRateRecord.BPM_AVG]?.let { o.put("restingHr", it) }
+                    bucket.result[NutritionRecord.ENERGY_TOTAL]?.let { o.put("kcal", Math.round(it.inKilocalories)) }
+                    bucket.result[NutritionRecord.PROTEIN_TOTAL]?.let { o.put("protein", Math.round(it.inGrams * 10) / 10.0) }
                     days.put(o)
                 }
                 val ret = JSObject()
