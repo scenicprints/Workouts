@@ -1,5 +1,5 @@
 import type { Plan, RoutineItem, Session, SessionEntry, SetEntry, Unit } from '../db'
-import { dropToGrid, repBuffer, snapToGrid, stepShare, type LoadStep } from './loadStep'
+import { clampToLimits, dropToGrid, repBuffer, snapToGrid, stepShare, type LoadStep } from './loadStep'
 
 /** Epley estimated one-rep max. Returns 0 for empty sets. */
 export function estimate1RM(weight: number, reps: number): number {
@@ -42,6 +42,8 @@ export interface Target {
   from?: number
   /** The step the equipment moves in, as used for this target. */
   step?: number
+  /** The weight is at the equipment's ceiling, so reps climb instead. */
+  capped?: boolean
 }
 
 /** Total reps across completed work sets. */
@@ -91,7 +93,7 @@ export interface NextTargetOptions {
    * lands on this grid. Without it, the increment stored on the previous entry or the routine item
    * is taken as the step, anchored on the last weight.
    */
-  step?: Pick<LoadStep, 'step' | 'anchor'>
+  step?: Pick<LoadStep, 'step' | 'anchor' | 'min' | 'max'>
 }
 
 /**
@@ -116,13 +118,17 @@ export function nextTarget(item: RoutineItem, previous: SessionEntry | undefined
   const last = previous ? workingWeight(previous.sets) : null
   const step = options.step?.step ?? (previous ? previous.increment || item.increment : item.increment)
   const anchor = options.step?.anchor ?? last ?? item.weight
+  const limits = { min: options.step?.min, max: options.step?.max }
   const buffer = last !== null ? repBuffer(step, last) : 0
-  const ranged = hasRepRange(item) || buffer > 0
+  // At the equipment's ceiling there is nowhere for the weight to go, so reps climb without end.
+  const atMax = last !== null && limits.max !== undefined && last >= limits.max
+  const ranged = hasRepRange(item) || buffer > 0 || atMax
   const bottom = hasRepRange(item) ? (item.minReps as number) : item.reps
-  const top = item.reps + buffer
+  const top = atMax ? Infinity : item.reps + buffer
   let weight = item.weight
   let reps = bottom
   let reason: Target['reason'] = 'start'
+  let capped = false
   if (previous && last !== null) {
     const lastReps = Math.min(Math.max(targetRepsOf(previous) ?? bottom, bottom), top)
     if (hitAllTargets(previous.sets)) {
@@ -130,16 +136,17 @@ export function nextTarget(item: RoutineItem, previous: SessionEntry | undefined
         weight = last
         reps = lastReps
         reason = 'held'
-      } else if (overshot(previous.sets) && allowIncrease) {
+      } else if (overshot(previous.sets) && allowIncrease && !atMax) {
         const steps = stepShare(step * 2, last) <= 0.1 ? 2 : 1
-        weight = last + step * steps
-        reason = steps === 2 ? 'jump' : 'increase'
+        weight = clampToLimits(last + step * steps, limits)
+        reason = steps === 2 && weight === last + step * 2 ? 'jump' : 'increase'
       } else if (ranged && lastReps < top) {
         weight = last
         reps = lastReps + 1
         reason = 'reps'
+        capped = atMax
       } else {
-        weight = last + step
+        weight = clampToLimits(last + step, limits)
         reason = 'increase'
       }
     } else {
@@ -156,23 +163,32 @@ export function nextTarget(item: RoutineItem, previous: SessionEntry | undefined
       const fell = older.length > 0 && sameTarget(older[0]) && totalReps(previous.sets) < totalReps(older[0].sets)
       const reset = options.cutting ? (misses >= 2 && fell) || misses >= 4 : misses >= 2
       if (reset) {
-        weight = dropToGrid(last, 0.9, step, anchor)
+        weight = dropBelow(last, step, anchor, limits)
         reps = bottom
         reason = 'reset'
       }
     }
   } else if (weight <= 0 && options.suggestedWeight) {
-    weight = snapToGrid(options.suggestedWeight, step, anchor)
+    weight = clampToLimits(snapToGrid(options.suggestedWeight, step, anchor), limits)
     reason = 'suggested'
+  } else if (weight > 0) {
+    weight = clampToLimits(weight, limits)
   }
   let from = last ?? undefined
   if (options.isDeload) {
     from ??= weight
-    weight = dropToGrid(weight, 0.9, step, anchor)
+    weight = dropBelow(weight, step, anchor, limits)
     reason = 'deload'
   }
   weight = Math.round(weight * 1000) / 1000
-  return { weight, reps, reason, from, step }
+  return { weight, reps, reason, from, step, capped: capped || undefined }
+}
+
+/** About 90% of `weight` on the grid, never under the equipment's floor; `weight` itself when it cannot drop. */
+function dropBelow(weight: number, step: number, anchor: number, limits: Pick<LoadStep, 'min' | 'max'>): number {
+  const dropped = dropToGrid(weight, 0.9, step, anchor)
+  if (limits.min !== undefined && dropped < limits.min) return limits.min <= weight ? limits.min : weight
+  return dropped
 }
 
 /** The most recent finished entries for an exercise, newest first, optionally scoped to a routine. */

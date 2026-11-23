@@ -245,3 +245,31 @@ describe('readiness at session start', () => {
     expect(s.entries[0].sets[0].targetWeight).toBe(62.5)
   })
 })
+
+describe('equipment limits set on the exercise', () => {
+  async function cleanSession(routine: Awaited<ReturnType<typeof makeRoutine>>) {
+    const id = await sessions.startRoutineSession(routine, { unit: 'kg', readiness: false })
+    const s = (await database.sessions.get(id))!
+    s.entries[0].sets = s.entries[0].sets.map((x) => ({ ...x, done: true }))
+    await database.sessions.update(id, { entries: s.entries })
+    await sessions.finishSession(id)
+  }
+  it('uses the set step and stops at the ceiling with reps climbing', async () => {
+    const routine = await makeRoutine()
+    await database.exercises.update(routine.items[0].exerciseId, { load: { step: 5, max: 65 } })
+    await cleanSession(routine)
+    let id = await sessions.startRoutineSession(routine, { unit: 'kg', readiness: false })
+    let s = (await database.sessions.get(id))!
+    expect(s.entries[0].sets[0].targetWeight).toBe(65)
+    expect(s.entries[0].increment).toBe(5)
+    expect(s.entries[0].note).toBe('+5 kg after a clean session')
+    s.entries[0].sets = s.entries[0].sets.map((x) => ({ ...x, done: true }))
+    await database.sessions.update(id, { entries: s.entries })
+    await sessions.finishSession(id)
+
+    id = await sessions.startRoutineSession(routine, { unit: 'kg', readiness: false })
+    s = (await database.sessions.get(id))!
+    expect(s.entries[0].sets[0]).toMatchObject({ targetWeight: 65, targetReps: 6 })
+    expect(s.entries[0].note).toBe('Maxed out at 65 kg: reps 5 → 6')
+  })
+})

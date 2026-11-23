@@ -59,7 +59,7 @@ export function describeTarget(target: Target, unit: Unit, readiness?: Readiness
     case 'jump':
       return `${inc}: last time was too easy`
     case 'reps':
-      return `Reps ${target.reps - 1} → ${target.reps}, same weight`
+      return target.capped ? `Maxed out at ${formatWeight(target.weight, unit)}: reps ${target.reps - 1} → ${target.reps}` : `Reps ${target.reps - 1} → ${target.reps}, same weight`
     case 'held':
       return `Held: ${readiness?.holdReason ?? 'recovery'}`
     case 'repeat':

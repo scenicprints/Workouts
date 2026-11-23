@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Session } from '../db'
-import { dropToGrid, equipmentStep, learnStep, loggedWeights, repBuffer, resolveStep, snapToGrid } from '../lib/loadStep'
+import { clampToLimits, cleanLimits, dropToGrid, equipmentStep, learnStep, loggedWeights, repBuffer, resolveStep, snapToGrid } from '../lib/loadStep'
 
 describe('learnStep', () => {
   it('says nothing from a single weight', () => {
@@ -91,5 +91,26 @@ describe('loggedWeights', () => {
     sessions[1].entries[0].sets.push({ reps: 5, weight: 40, done: true, kind: 'warmup' }, { reps: 0, weight: 95, done: false, kind: 'work' })
     expect(loggedWeights(sessions, 7)).toEqual([90, 90, 85, 80, 80])
     expect(loggedWeights(sessions, 8)).toEqual([])
+  })
+})
+
+describe('user-set limits', () => {
+  const machine = { equipment: 'Machine', bodyweight: false }
+  it('a set step beats the learned one and the floor anchors the grid', () => {
+    const r = resolveStep([100, 90], 5, { ...machine, load: { step: 5, min: 15, max: 200 } }, 'lb')
+    expect(r).toMatchObject({ step: 5, source: 'set', anchor: 15, min: 15, max: 200 })
+  })
+  it('keeps the learned step when only the limits are set', () => {
+    expect(resolveStep([100, 90], 5, { ...machine, load: { max: 200 } }, 'lb')).toMatchObject({ step: 10, source: 'logged', max: 200, min: undefined })
+  })
+  it('throws out nonsense limits', () => {
+    expect(cleanLimits({ step: 0, min: -5, max: 0 })).toEqual({})
+    expect(cleanLimits({ min: 100, max: 50 })).toEqual({ min: 100 })
+    expect(cleanLimits(undefined)).toEqual({})
+  })
+  it('clamps into the floor and ceiling', () => {
+    expect(clampToLimits(250, { max: 200 })).toBe(200)
+    expect(clampToLimits(10, { min: 15 })).toBe(15)
+    expect(clampToLimits(50, {})).toBe(50)
   })
 })

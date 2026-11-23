@@ -1,17 +1,22 @@
-import type { Exercise, Session, Unit } from '../db'
+import type { Exercise, LoadLimits, Session, Unit } from '../db'
 
 /**
  * The smallest change in load a piece of equipment allows, and where that knowledge came from.
  * Dumbbell racks move in 5 lb, most plate-loaded lifts in 5 lb, selectorised machines in 10 or
  * 15 lb, cable stacks in whatever the gym bought. The routine's `increment` is only a seed: the
- * real step is learned from the weights actually logged for the exercise.
+ * real step is learned from the weights actually logged for the exercise, unless the user has set
+ * the equipment's step, floor and ceiling on the exercise itself.
  */
 export interface LoadStep {
   step: number
-  /** `logged` once two or more distinct weights pin the grid down, else the seed or an equipment default. */
-  source: 'logged' | 'seed' | 'equipment'
+  /** `set` when the user typed it on the exercise; `logged` once two or more distinct weights pin the grid down; else the seed or an equipment default. */
+  source: 'set' | 'logged' | 'seed' | 'equipment'
   /** A weight known to exist on this equipment; every target is a whole number of steps from it. */
   anchor: number
+  /** The lightest weight the equipment goes to, when the user set one. */
+  min?: number
+  /** The heaviest weight the equipment goes to, when the user set one. Undefined is no limit. */
+  max?: number
 }
 
 /** Step sizes that real equipment comes in, largest first. */
@@ -77,13 +82,38 @@ export function equipmentStep(exercise: Pick<Exercise, 'equipment' | 'bodyweight
  * else the routine's seed increment, else the equipment default. A seed of exactly 0 on a
  * bodyweight or cardio item means "there is no load to add" and is kept as is.
  */
-export function resolveStep(weights: number[], seed: number | undefined, exercise: Pick<Exercise, 'equipment' | 'bodyweight'> | undefined, unit: Unit): LoadStep {
+export function resolveStep(weights: number[], seed: number | undefined, exercise: Pick<Exercise, 'equipment' | 'bodyweight' | 'load'> | undefined, unit: Unit): LoadStep {
+  const limits = cleanLimits(exercise?.load)
   const learned = learnStep(weights, unit)
-  if (learned) return learned
-  const anchor = weights[0] ?? 0
-  if (seed !== undefined && seed > 0) return { step: seed, source: 'seed', anchor }
-  if (seed === 0 && equipmentStep(exercise, unit) === 0) return { step: 0, source: 'seed', anchor }
-  return { step: equipmentStep(exercise, unit), source: 'equipment', anchor }
+  const base: LoadStep = (() => {
+    if (limits.step !== undefined) return { step: limits.step, source: 'set', anchor: limits.min ?? weights[0] ?? 0 }
+    if (learned) return learned
+    const anchor = weights[0] ?? 0
+    if (seed !== undefined && seed > 0) return { step: seed, source: 'seed', anchor }
+    if (seed === 0 && equipmentStep(exercise, unit) === 0) return { step: 0, source: 'seed', anchor }
+    return { step: equipmentStep(exercise, unit), source: 'equipment', anchor }
+  })()
+  // A floor the user typed is a weight that exists, so it is the best anchor for the grid.
+  if (limits.min !== undefined) base.anchor = limits.min
+  return { ...base, min: limits.min, max: limits.max }
+}
+
+/** Drop limits that make no sense (negatives, a ceiling under the floor, a zero step). */
+export function cleanLimits(load: LoadLimits | undefined): LoadLimits {
+  if (!load) return {}
+  const out: LoadLimits = {}
+  if (load.step !== undefined && load.step > 0) out.step = load.step
+  if (load.min !== undefined && load.min > 0) out.min = load.min
+  if (load.max !== undefined && load.max > 0 && (out.min === undefined || load.max >= out.min)) out.max = load.max
+  return out
+}
+
+/** Keep a weight inside the equipment's floor and ceiling. */
+export function clampToLimits(weight: number, limits: Pick<LoadStep, 'min' | 'max'>): number {
+  let w = weight
+  if (limits.max !== undefined && w > limits.max) w = limits.max
+  if (limits.min !== undefined && w < limits.min) w = limits.min
+  return w
 }
 
 /** The grid weight nearest to `weight`. A step of 0 means any weight is fine. */

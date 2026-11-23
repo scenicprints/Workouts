@@ -23,7 +23,11 @@ export function Settings() {
   async function changeUnit(to: Unit) {
     if (to === unit) return
     if (!confirm(`Switch to ${to}? All stored weights will be converted.`)) return
-    await db.transaction('rw', [db.sessions, db.routines, db.body, db.settings], async () => {
+    await db.transaction('rw', [db.sessions, db.routines, db.body, db.settings, db.exercises], async () => {
+      const conv = (v: number | undefined) => (v === undefined ? undefined : convertWeight(v, unit, to))
+      for (const ex of await db.exercises.filter((e) => !!e.load).toArray()) {
+        await db.exercises.update(ex.id!, { load: { min: conv(ex.load!.min), max: conv(ex.load!.max), step: conv(ex.load!.step) } })
+      }
       const sessions = await db.sessions.toArray()
       for (const s of sessions) {
         await db.sessions.update(s.id!, {

@@ -4,9 +4,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
 import { useUnit } from '../hooks/useSettings'
 import { estimate1RM } from '../lib/progression'
-import { learnStep, loggedWeights } from '../lib/loadStep'
+import { cleanLimits, learnStep, loggedWeights } from '../lib/loadStep'
 import { formatDate, formatWeight } from '../lib/format'
 import { LineChart } from '../components/Charts'
+import { EquipmentSheet } from '../components/EquipmentSheet'
 
 export function ExerciseDetail() {
   const { id } = useParams()
@@ -15,6 +16,7 @@ export function ExerciseDetail() {
   const exercise = useLiveQuery(() => db.exercises.get(Number(id)), [id])
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState('')
+  const [equip, setEquip] = useState(false)
   const points = useLiveQuery(async () => {
     const sessions = await db.sessions.filter((s) => !!s.finishedAt).sortBy('finishedAt')
     const out: { ts: number; best: number; e1rm: number; sets: number; sessionId: number }[] = []
@@ -32,6 +34,7 @@ export function ExerciseDetail() {
   if (exercise === undefined) return null
   if (!exercise) return <div className="empty">Exercise not found.</div>
 
+  const limits = cleanLimits(exercise.load)
   const pr = points?.reduce((b, p) => Math.max(b, p.best), 0) ?? 0
   const bestE1rm = points?.reduce((b, p) => Math.max(b, p.e1rm), 0) ?? 0
 
@@ -86,11 +89,17 @@ export function ExerciseDetail() {
           <div className="stat__value">{points?.length ?? 0}</div>
           <div className="stat__label">sessions</div>
         </div>
-        <div className="stat" title={step ? 'Learned from the weights you have logged. Targets land on this grid.' : 'Log two different weights and the app learns what this equipment moves in.'}>
-          <div className="stat__value">{step ? formatWeight(step.step, unit) : '—'}</div>
-          <div className="stat__label">weight step</div>
-        </div>
+        <button type="button" className="stat" style={{ cursor: 'pointer', textAlign: 'inherit', font: 'inherit', color: 'inherit' }} onClick={() => setEquip(true)} title={limits.step ? 'Set by you. Tap to change.' : step ? 'Learned from the weights you have logged. Tap to set it yourself.' : 'Log two different weights and the app learns what this equipment moves in, or tap to set it.'}>
+          <div className="stat__value">{limits.step ? formatWeight(limits.step, unit) : step ? formatWeight(step.step, unit) : '—'}</div>
+          <div className="stat__label">{limits.step ? 'step (set)' : 'step (learned)'}</div>
+        </button>
       </div>
+      {limits.min !== undefined || limits.max !== undefined ? (
+        <p className="muted small" style={{ margin: 0 }}>
+          Equipment runs {limits.min !== undefined ? `from ${formatWeight(limits.min, unit)}` : 'from the lightest'} {limits.max !== undefined ? `to ${formatWeight(limits.max, unit)}` : 'with no maximum'}.
+        </p>
+      ) : null}
+      {equip ? <EquipmentSheet exercise={exercise} unit={unit} onClose={() => setEquip(false)} /> : null}
       {points && points.length >= 2 ? (
         <div className="card">
           <div className="card__title">Estimated 1RM over time</div>

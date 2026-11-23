@@ -32,7 +32,19 @@ export interface Exercise {
   compound?: boolean
   bodyweight?: boolean
   custom?: boolean
+  /** What the equipment for this exercise can load, set by the user. Overrides anything learned. */
+  load?: LoadLimits
   createdAt: number
+}
+
+/** In the app's weight unit. Any field left out is unknown (step: learn it; min: none; max: no limit). */
+export interface LoadLimits {
+  /** Lightest weight the equipment goes down to. */
+  min?: number
+  /** Heaviest weight the equipment goes up to. Leave out for no limit. */
+  max?: number
+  /** What one notch on the equipment moves the weight by. */
+  step?: number
 }
 
 export interface RoutineItem {

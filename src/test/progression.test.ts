@@ -251,3 +251,28 @@ describe('nextTarget on an equipment grid', () => {
     expect(nextTarget(lbItem, sets(8, 140), { unit: 'lb', step: stack10, isDeload: true })).toMatchObject({ weight: 140, reason: 'deload' })
   })
 })
+
+describe('nextTarget inside equipment limits', () => {
+  const lbItem: RoutineItem = { exerciseId: 1, sets: 3, reps: 8, restSec: 90, weight: 0, increment: 5 }
+  const sets = (reps: number, weight: number, target = 8): SessionEntry => ({ exerciseId: 1, restSec: 90, increment: 5, sets: [1, 2, 3].map(() => ({ reps, weight, done: true, targetReps: target, targetWeight: weight })) })
+  const stack = { step: 10, anchor: 20, min: 20, max: 200 }
+
+  it('stops at the ceiling and climbs reps from there without end', () => {
+    expect(nextTarget(lbItem, sets(8, 195), { unit: 'lb', step: stack })).toMatchObject({ weight: 200, reason: 'increase' })
+    expect(nextTarget(lbItem, sets(8, 200), { unit: 'lb', step: stack })).toMatchObject({ weight: 200, reps: 9, reason: 'reps', capped: true })
+    expect(nextTarget(lbItem, sets(14, 200, 14), { unit: 'lb', step: stack })).toMatchObject({ weight: 200, reps: 15, reason: 'reps', capped: true })
+    expect(nextTarget(lbItem, sets(12, 200, 10), { unit: 'lb', step: stack })).toMatchObject({ weight: 200, reps: 11, reason: 'reps' })
+  })
+  it('still holds at the ceiling when readiness says so', () => {
+    expect(nextTarget(lbItem, sets(8, 200), { unit: 'lb', step: stack, allowIncrease: false, allowRepClimb: false })).toMatchObject({ weight: 200, reps: 8, reason: 'held' })
+  })
+  it('never drops under the floor', () => {
+    const miss = sets(6, 20)
+    expect(nextTarget(lbItem, miss, { unit: 'lb', step: stack, history: [miss] })).toMatchObject({ weight: 20, reps: 8, reason: 'reset' })
+    expect(nextTarget(lbItem, sets(8, 30), { unit: 'lb', step: stack, isDeload: true })).toMatchObject({ weight: 30, reason: 'deload' })
+    expect(nextTarget({ ...lbItem, weight: 10 }, undefined, { unit: 'lb', step: stack })).toMatchObject({ weight: 20, reason: 'start' })
+  })
+  it('snaps and clamps a suggestion', () => {
+    expect(nextTarget(lbItem, undefined, { unit: 'lb', step: stack, suggestedWeight: 230 })).toMatchObject({ weight: 200, reason: 'suggested' })
+  })
+})
