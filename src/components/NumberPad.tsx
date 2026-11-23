@@ -61,6 +61,23 @@ function PadSheet({ req }: { req: PadRequest }) {
           <X size={18} />
         </button>
       </div>
+      {req.chips && req.chips.length > 0 ? (
+        <div className="keypad__chips">
+          {req.chips.map((c) => (
+            <button
+              key={c.label}
+              type="button"
+              className="keypad__chip"
+              onClick={() => {
+                setFresh(true)
+                commit(format(c.value))
+              }}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="keypad__grid">
         {['7', '8', '9', '4', '5', '6', '1', '2', '3'].map((k) => (
           <button key={k} type="button" className="keypad__key" onClick={() => typeKey(k)}>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, MoreHorizontal, Plus } from 'lucide-react'
+import { Check, ChevronDown, MoreHorizontal } from 'lucide-react'
 import { db, type Exercise, type Session, type SessionEntry, type SetEntry, type Unit } from '../db'
 import { useDefaultRest, useExerciseMap, useRestTimerEnabled, useUnit } from '../hooks/useSettings'
 import { restTimer } from '../hooks/useRestTimer'
@@ -30,45 +30,55 @@ function StartWorkout() {
   return (
     <div className="stack">
       <div className="page-head">
-        <h1>Start a workout</h1>
+        <h1>Workout</h1>
       </div>
       {next && !next.complete && next.routine ? (
-        <div className="card card--accent">
-          <div className="card__title">
-            {next.plan.name} · Week {next.week}, {next.label}
+        <div className="hero">
+          <div className="hero__eyebrow">
+            {next.plan.name} · Week {next.week}
           </div>
-          <p className="muted">
-            {next.routine.name}
+          <div className="hero__title">{next.routine.name}</div>
+          <div className="hero__meta">
+            {next.label} · {next.routine.items.length} exercises
             {next.isDeload ? ' · deload week' : ''}
-          </p>
+          </div>
           <button type="button" className="btn btn--primary btn--block btn--lg" onClick={() => startRoutineSession(next.routine!, { plan: next.plan, unit })}>
-            Start plan workout
+            Start workout
+            <Arrow />
           </button>
         </div>
       ) : null}
-      <div className="card">
-        <div className="card__title">Routines</div>
+      <div>
+        <div className="section">Routines</div>
         {routines.length === 0 ? (
-          <p className="muted small">
-            No routines yet. <Link to="/generate">Generate a program</Link> or <Link to="/routines/new">build a routine</Link>.
-          </p>
-        ) : (
-          <div className="stack">
-            {routines.map((r) => (
-              <button key={r.id} type="button" className="btn" onClick={() => startRoutineSession(r, { unit })}>
-                <span className="grow" style={{ textAlign: 'left' }}>
-                  {r.name}
-                </span>
-                <span className="muted small">{r.items.length} exercises</span>
-              </button>
-            ))}
+          <div className="empty">
+            No routines yet. <Link to="/generate">Generate a program</Link> or <Link to="/routines/new">build one</Link>.
           </div>
+        ) : (
+          <ul className="list">
+            {routines.map((r) => (
+              <li key={r.id}>
+                <button type="button" className="list__item" onClick={() => startRoutineSession(r, { unit })}>
+                  <span className="list__title">{r.name}</span>
+                  <span className="list__meta">{r.items.length} exercises</span>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
-      <button type="button" className="btn btn--ghost btn--block" onClick={() => startEmptySession()}>
-        Start empty workout
+      <button type="button" className="btn btn--block" onClick={() => startEmptySession()}>
+        Start an empty workout
       </button>
     </div>
+  )
+}
+
+function Arrow() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </svg>
   )
 }
 
@@ -78,8 +88,8 @@ function ActiveWorkout({ session }: { session: Session }) {
   const defaultRest = useDefaultRest()
   const timerOn = useRestTimerEnabled()
   const exercises = useExerciseMap()
-  const [picking, setPicking] = useState<'add' | 'swap' | null>(null)
-  const [index, setIndex] = useState(() => firstUnfinished(session))
+  const [picking, setPicking] = useState<'add' | number | null>(null)
+  const [open, setOpen] = useState(() => firstUnfinished(session))
   const [now, setNow] = useState(() => Date.now())
   const history = useLiveQuery(() => db.sessions.filter((s) => !!s.finishedAt).toArray(), []) ?? NO_SESSIONS
 
@@ -90,13 +100,11 @@ function ActiveWorkout({ session }: { session: Session }) {
 
   const id = session.id!
   const save = (entries: SessionEntry[]) => db.sessions.update(id, { entries })
-  const current = Math.min(index, Math.max(session.entries.length - 1, 0))
-  const entry = session.entries[current]
 
   function updateSet(ei: number, si: number, patch: Partial<SetEntry>) {
     void save(session.entries.map((e, i) => (i === ei ? { ...e, sets: e.sets.map((s, j) => (j === si ? { ...s, ...patch } : s)) } : e)))
   }
-  /** Log a set: mark done, start rest, and let untouched upcoming sets follow what you just did. */
+  /** Log a set: mark done and let untouched upcoming sets follow what you just did. */
   function logSet(ei: number, si: number) {
     const e = session.entries[ei]
     const set = e.sets[si]
@@ -108,24 +116,26 @@ function ActiveWorkout({ session }: { session: Session }) {
     })
     void save(session.entries.map((x, i) => (i === ei ? { ...x, sets } : x)))
     if (done && timerOn) restTimer.start(set.kind === 'warmup' ? Math.min(60, e.restSec || defaultRest) : e.restSec || defaultRest)
+    // When the last set of an exercise is logged, open the next unfinished one.
+    if (done && sets.every((s) => s.done)) {
+      const next = session.entries.findIndex((x, i) => i > ei && x.sets.some((s) => !s.done))
+      if (next !== -1) setOpen(next)
+    }
   }
   function addSet(ei: number, kind: 'work' | 'warmup' = 'work') {
     const e = session.entries[ei]
     const work = e.sets.filter((s) => s.kind !== 'warmup')
     const last = work[work.length - 1]
-    let next: SetEntry
     if (kind === 'warmup') {
-      // Base warm-ups on the heaviest working weight on screen, so they still make sense on a
-      // first session where the plan target is 0 and you typed the weight in yourself.
       const target = Math.max(0, ...work.map((s) => s.weight), ...work.map((s) => s.targetWeight ?? 0))
       const n = e.sets.filter((s) => s.kind === 'warmup').length
       const pct = [0.4, 0.6, 0.8][n] ?? 0.9
-      next = { reps: n === 0 ? 8 : 5, weight: roundToPlate(target * pct, unit), done: false, kind: 'warmup' }
+      const next: SetEntry = { reps: n === 0 ? 8 : 5, weight: roundToPlate(target * pct, unit), done: false, kind: 'warmup' }
       const warmups = e.sets.filter((s) => s.kind === 'warmup')
       void save(session.entries.map((x, i) => (i === ei ? { ...x, sets: [...warmups, next, ...work] } : x)))
       return
     }
-    next = last ? { ...last, done: false } : { reps: 8, weight: 0, done: false, kind: 'work' }
+    const next: SetEntry = last ? { ...last, done: false } : { reps: 8, weight: 0, done: false, kind: 'work' }
     void save(session.entries.map((x, i) => (i === ei ? { ...x, sets: [...x.sets, next] } : x)))
   }
   function removeSet(ei: number, si: number) {
@@ -133,7 +143,7 @@ function ActiveWorkout({ session }: { session: Session }) {
   }
   function removeExercise(ei: number) {
     void save(session.entries.filter((_, i) => i !== ei))
-    setIndex((f) => Math.max(0, Math.min(f, session.entries.length - 2)))
+    setOpen((o) => Math.max(0, Math.min(o, session.entries.length - 2)))
   }
   function setRest(ei: number, restSec: number) {
     void save(session.entries.map((e, i) => (i === ei ? { ...e, restSec } : e)))
@@ -141,28 +151,18 @@ function ActiveWorkout({ session }: { session: Session }) {
   function addExercise(ex: Exercise) {
     const prev = latestEntryFor(history, ex.id!)
     const template = prev?.sets.filter((s) => s.kind !== 'warmup').at(-1)
-    const sets: SetEntry[] = Array.from({ length: prev?.sets.filter((s) => s.kind !== 'warmup').length || 3 }, () => ({
-      reps: template?.reps ?? 8,
-      weight: template?.weight ?? 0,
-      done: false,
-      kind: 'work',
-    }))
+    const sets: SetEntry[] = Array.from({ length: prev?.sets.filter((s) => s.kind !== 'warmup').length || 3 }, () => ({ reps: template?.reps ?? 8, weight: template?.weight ?? 0, done: false, kind: 'work' }))
     void save([...session.entries, { exerciseId: ex.id!, restSec: prev?.restSec ?? defaultRest, increment: prev?.increment ?? (unit === 'kg' ? 2.5 : 5), sets }])
     setPicking(null)
-    setIndex(session.entries.length)
+    setOpen(session.entries.length)
   }
-  function swapExercise(ex: Exercise) {
+  function swapExercise(ei: number, ex: Exercise) {
     const prev = latestEntryFor(history, ex.id!)
     const template = prev?.sets.filter((s) => s.kind !== 'warmup').at(-1)
     void save(
       session.entries.map((e, i) =>
-        i === current
-          ? {
-              ...e,
-              exerciseId: ex.id!,
-              increment: prev?.increment ?? e.increment,
-              sets: e.sets.map((s) => (s.done ? s : { ...s, weight: template?.weight ?? 0, reps: template?.reps ?? s.reps, targetWeight: template?.weight ?? 0, targetReps: template?.reps ?? s.targetReps })),
-            }
+        i === ei
+          ? { ...e, exerciseId: ex.id!, increment: prev?.increment ?? e.increment, sets: e.sets.map((s) => (s.done ? s : { ...s, weight: template?.weight ?? 0, reps: template?.reps ?? s.reps, targetWeight: template?.weight ?? 0, targetReps: template?.reps ?? s.targetReps })) }
           : e,
       ),
     )
@@ -185,7 +185,8 @@ function ActiveWorkout({ session }: { session: Session }) {
 
   const doneSets = session.entries.reduce((a, e) => a + e.sets.filter((s) => s.done && s.kind !== 'warmup').length, 0)
   const totalSets = session.entries.reduce((a, e) => a + e.sets.filter((s) => s.kind !== 'warmup').length, 0)
-  const currentMuscle = entry ? exercises?.get(entry.exerciseId)?.muscle : undefined
+  const swapping = typeof picking === 'number' ? session.entries[picking] : null
+  const swapMuscle = swapping ? exercises?.get(swapping.exerciseId)?.muscle : undefined
 
   return (
     <div className="stack">
@@ -196,11 +197,11 @@ function ActiveWorkout({ session }: { session: Session }) {
             <span>{session.name}</span>
             <span className="session-head__dot" />
             <span>
-              {doneSets}/{totalSets} sets
+              {doneSets} of {totalSets} sets
             </span>
           </div>
         </div>
-        <button type="button" className="btn btn--primary btn--pill" onClick={finish}>
+        <button type="button" className="btn btn--primary" onClick={finish}>
           Finish
         </button>
       </div>
@@ -208,58 +209,63 @@ function ActiveWorkout({ session }: { session: Session }) {
         <div style={{ width: `${totalSets ? (doneSets / totalSets) * 100 : 0}%` }} />
       </div>
 
-      {/* Exercise bar: one exercise at a time, swipe-free tabs. */}
-      <div className="exbar" role="tablist" aria-label="Exercises">
-        {session.entries.map((e, i) => {
-          const work = e.sets.filter((s) => s.kind !== 'warmup')
-          const done = work.filter((s) => s.done).length
-          const complete = work.length > 0 && done === work.length
+      {session.entries.length === 0 ? <div className="empty">Add an exercise to get going.</div> : null}
+
+      {session.entries.map((entry, ei) => {
+        const ex = exercises?.get(entry.exerciseId)
+        const work = entry.sets.filter((s) => s.kind !== 'warmup')
+        const done = work.filter((s) => s.done).length
+        const complete = work.length > 0 && done === work.length
+        if (ei !== open) {
+          const first = work[0]
           return (
-            <button key={`${e.exerciseId}-${i}`} type="button" role="tab" aria-selected={i === current} className={`exbar__tab${i === current ? ' exbar__tab--active' : ''}${complete ? ' exbar__tab--done' : ''}`} onClick={() => setIndex(i)}>
-              <span className="exbar__name">{exercises?.get(e.exerciseId)?.name ?? 'Exercise'}</span>
-              <span className="exbar__meta">
-                {complete ? '✓ ' : ''}
-                {done}/{work.length}
+            <button key={`${entry.exerciseId}-${ei}`} type="button" className="card exercise--pending" onClick={() => setOpen(ei)} style={{ textAlign: 'left', border: 0, cursor: 'pointer', font: 'inherit' }}>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                <span className="exercise__title">{ex?.name ?? 'Exercise'}</span>
+                <span className="muted small">
+                  {complete ? `Done · ${work.map((s) => `${formatNum(s.weight)}×${s.reps}`).join(', ')}` : `${work.length} × ${first?.reps ?? '–'} · ${first ? formatWeight(first.weight, unit) : ''}${done ? ` · ${done} of ${work.length} done` : ''}`}
+                </span>
               </span>
-              <span className="exbar__bar">
-                <span style={{ width: `${work.length ? (done / work.length) * 100 : 0}%` }} />
-              </span>
+              {complete ? (
+                <span className="set__check" aria-pressed="true" style={{ width: 36, height: 36 }}>
+                  <Check size={18} strokeWidth={3} />
+                </span>
+              ) : (
+                <ChevronDown size={20} className="muted" />
+              )}
             </button>
           )
-        })}
-        <button type="button" className="exbar__tab exbar__tab--add" onClick={() => setPicking('add')} aria-label="Add exercise">
-          <Plus size={22} />
+        }
+        return (
+          <ExercisePanel
+            key={`${entry.exerciseId}-${ei}`}
+            entry={entry}
+            exercise={ex}
+            unit={unit}
+            previous={latestEntryFor(history, entry.exerciseId)}
+            timerOn={timerOn}
+            onLog={(si) => logSet(ei, si)}
+            onUpdate={(si, patch) => updateSet(ei, si, patch)}
+            onAddSet={(kind) => addSet(ei, kind)}
+            onRemoveSet={(si) => removeSet(ei, si)}
+            onRemove={() => removeExercise(ei)}
+            onRest={(r) => setRest(ei, r)}
+            onSwap={() => setPicking(ei)}
+          />
+        )
+      })}
+
+      <div className="row" style={{ justifyContent: 'center', gap: 10 }}>
+        <button type="button" className="btn" onClick={() => setPicking('add')}>
+          + Add exercise
+        </button>
+        <button type="button" className="btn btn--ghost btn--danger btn--sm" onClick={discard}>
+          Discard
         </button>
       </div>
 
-      {!entry ? (
-        <div className="empty">Add an exercise to get going.</div>
-      ) : (
-        <ExercisePanel
-          key={`${entry.exerciseId}-${current}`}
-          entry={entry}
-          exercise={exercises?.get(entry.exerciseId)}
-          unit={unit}
-          previous={latestEntryFor(history, entry.exerciseId)}
-          timerOn={timerOn}
-          isLast={current >= session.entries.length - 1}
-          onLog={(si) => logSet(current, si)}
-          onUpdate={(si, patch) => updateSet(current, si, patch)}
-          onAddSet={(kind) => addSet(current, kind)}
-          onRemoveSet={(si) => removeSet(current, si)}
-          onRemove={() => removeExercise(current)}
-          onRest={(r) => setRest(current, r)}
-          onSwap={() => setPicking('swap')}
-          onNext={() => setIndex(current + 1)}
-        />
-      )}
-
-      <button type="button" className="btn btn--ghost btn--danger btn--block btn--sm" onClick={discard}>
-        Discard workout
-      </button>
-
       {picking === 'add' ? <ExercisePicker onPick={addExercise} onClose={() => setPicking(null)} /> : null}
-      {picking === 'swap' && entry ? <ExercisePicker title="Swap exercise" prefer={(e) => e.muscle === currentMuscle} excludeId={entry.exerciseId} onPick={swapExercise} onClose={() => setPicking(null)} /> : null}
+      {swapping ? <ExercisePicker title="Swap exercise" prefer={(e) => e.muscle === swapMuscle} excludeId={swapping.exerciseId} onPick={(ex) => swapExercise(picking as number, ex)} onClose={() => setPicking(null)} /> : null}
     </div>
   )
 }
@@ -279,7 +285,6 @@ interface PanelProps {
   unit: Unit
   previous: SessionEntry | undefined
   timerOn: boolean
-  isLast: boolean
   onLog: (si: number) => void
   onUpdate: (si: number, patch: Partial<SetEntry>) => void
   onAddSet: (kind?: 'work' | 'warmup') => void
@@ -287,17 +292,14 @@ interface PanelProps {
   onRemove: () => void
   onRest: (sec: number) => void
   onSwap: () => void
-  onNext: () => void
 }
 
-function ExercisePanel({ entry, exercise, unit, previous, timerOn, isLast, onLog, onUpdate, onAddSet, onRemoveSet, onRemove, onRest, onSwap, onNext }: PanelProps) {
+function ExercisePanel({ entry, exercise, unit, previous, timerOn, onLog, onUpdate, onAddSet, onRemoveSet, onRemove, onRest, onSwap }: PanelProps) {
   const [menu, setMenu] = useState(false)
   const [plates, setPlates] = useState<number | null>(null)
   const step = unit === 'kg' ? 2.5 : 5
   const prevWork = previous?.sets.filter((s) => s.kind !== 'warmup') ?? []
-  const allDone = entry.sets.length > 0 && entry.sets.every((s) => s.done)
   const nextUp = entry.sets.findIndex((s) => !s.done)
-  // Labels: warm-ups count as W1, W2…; working sets as 1, 2… and map onto last time's working sets.
   const labels: { label: string; prev: SetEntry | undefined }[] = []
   for (let work = 0, warm = 0, i = 0; i < entry.sets.length; i++) {
     if (entry.sets[i].kind === 'warmup') labels.push({ label: `W${++warm}`, prev: undefined })
@@ -306,7 +308,7 @@ function ExercisePanel({ entry, exercise, unit, previous, timerOn, isLast, onLog
   return (
     <div className="card card--exercise">
       <div className="exercise__head">
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h2 className="exercise__title">
             <Link to={`/exercises/${entry.exerciseId}`}>{exercise?.name ?? 'Exercise'}</Link>
           </h2>
@@ -319,24 +321,20 @@ function ExercisePanel({ entry, exercise, unit, previous, timerOn, isLast, onLog
         </button>
       </div>
       {menu ? (
-        <div className="stack" style={{ marginBottom: 12 }}>
-          <div className="row">
-            {timerOn ? <NumberField label="Rest" suffix="s" value={entry.restSec} onChange={onRest} step={15} compact integer /> : null}
-            <button type="button" className="btn btn--sm" onClick={() => onAddSet('warmup')}>
-              + Warm-up set
-            </button>
-          </div>
-          <div className="row">
-            <button type="button" className="btn btn--sm" onClick={onSwap}>
-              Swap exercise
-            </button>
-            <button type="button" className="btn btn--sm" onClick={() => setPlates(entry.sets[nextUp === -1 ? entry.sets.length - 1 : nextUp]?.weight ?? 0)}>
-              Plates
-            </button>
-            <button type="button" className="btn btn--sm btn--danger" onClick={onRemove}>
-              Remove
-            </button>
-          </div>
+        <div className="row" style={{ marginBottom: 12, padding: '0 4px' }}>
+          {timerOn ? <NumberField label="Rest" suffix="s" value={entry.restSec} onChange={onRest} step={15} compact integer /> : null}
+          <button type="button" className="btn btn--sm" onClick={() => onAddSet('warmup')}>
+            + Warm-up
+          </button>
+          <button type="button" className="btn btn--sm" onClick={onSwap}>
+            Swap
+          </button>
+          <button type="button" className="btn btn--sm" onClick={() => setPlates(entry.sets[nextUp === -1 ? entry.sets.length - 1 : nextUp]?.weight ?? 0)}>
+            Plates
+          </button>
+          <button type="button" className="btn btn--sm btn--danger" onClick={onRemove}>
+            Remove
+          </button>
         </div>
       ) : null}
 
@@ -353,6 +351,7 @@ function ExercisePanel({ entry, exercise, unit, previous, timerOn, isLast, onLog
           const { label, prev } = labels[si]
           const isNext = si === nextUp
           const hint = prev ? `${formatNum(prev.weight)} × ${prev.reps}` : set.targetWeight ? `${formatNum(set.targetWeight)} × ${set.targetReps}` : isWarm ? 'warm-up' : '—'
+          const chips = [prev ? { label: `${formatNum(prev.weight)} · last`, value: prev.weight } : null, set.targetWeight && set.targetWeight !== prev?.weight ? { label: `${formatNum(set.targetWeight)} · target`, value: set.targetWeight } : null].filter(Boolean) as { label: string; value: number }[]
           const openReps = () =>
             openPad({
               value: set.reps,
@@ -360,6 +359,7 @@ function ExercisePanel({ entry, exercise, unit, previous, timerOn, isLast, onLog
               step: 1,
               allowDecimal: false,
               onChange: (reps) => onUpdate(si, { reps }),
+              chips: prev ? [{ label: `${prev.reps} · last`, value: prev.reps }] : undefined,
               primary: {
                 label: set.done ? 'Done' : 'Log set',
                 onPress: () => {
@@ -376,6 +376,7 @@ function ExercisePanel({ entry, exercise, unit, previous, timerOn, isLast, onLog
               step,
               allowDecimal: true,
               onChange: (weight) => onUpdate(si, { weight }),
+              chips: chips.length ? chips : undefined,
               primary: { label: 'Next', onPress: openReps },
             })
           return (
@@ -400,22 +401,10 @@ function ExercisePanel({ entry, exercise, unit, previous, timerOn, isLast, onLog
         })}
       </div>
 
-      <div className="row" style={{ marginTop: 12 }}>
-        <button type="button" className="btn btn--ghost btn--sm" onClick={() => onAddSet('work')}>
+      <div className="row" style={{ marginTop: 8, padding: '0 4px' }}>
+        <button type="button" className="btn btn--ghost btn--sm" style={{ paddingInline: 4 }} onClick={() => onAddSet('work')}>
           + Add set
         </button>
-        <span className="grow" />
-        {allDone && !isLast ? (
-          <button type="button" className="btn btn--primary btn--sm btn--pill" onClick={onNext}>
-            Next exercise ›
-          </button>
-        ) : allDone && isLast ? (
-          <span className="muted small">All done. Hit Finish.</span>
-        ) : nextUp >= 0 ? (
-          <span className="muted small">
-            Up next: {entry.sets[nextUp].reps} × {formatWeight(entry.sets[nextUp].weight, unit)}
-          </span>
-        ) : null}
       </div>
       {plates !== null ? <PlateCalculator weight={plates} unit={unit} onClose={() => setPlates(null)} /> : null}
     </div>

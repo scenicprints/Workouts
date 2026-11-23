@@ -13,6 +13,8 @@ export interface PadRequest {
   onChange: (v: number) => void
   /** Label and handler for the primary button, e.g. "Next" or "Log set". */
   primary?: { label: string; onPress: () => void }
+  /** Quick-pick chips above the keys, e.g. last time's weight. */
+  chips?: { label: string; value: number }[]
 }
 
 interface PadState {

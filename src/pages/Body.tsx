@@ -17,134 +17,129 @@ function today(): number {
 export function Body() {
   const unit = useUnit()
   const entries = useLiveQuery(() => db.body.orderBy('date').toArray(), [])
+  const daily = useLiveQuery(() => db.daily.orderBy('date').reverse().limit(1).toArray(), []) ?? []
   const [editing, setEditing] = useState<BodyEntry | null>(null)
   const [now] = useState(() => Date.now())
-  const daily = useLiveQuery(() => db.daily.orderBy('date').reverse().limit(14).toArray(), []) ?? []
   if (!entries) return null
 
   const todayEntry = entries.find((e) => e.date === today())
   const weights = entries.filter((e) => e.weight).map((e) => ({ x: e.date, y: e.weight! }))
   const latest = weights.at(-1)
-  const oldestRecent = weights.filter((w) => w.x >= now - 30 * 86400000)[0]
-  const avg7 = weights.filter((w) => w.x >= now - 7 * 86400000)
-  const avg = avg7.length ? avg7.reduce((a, w) => a + w.y, 0) / avg7.length : null
-  const lastMeasure = [...entries].reverse().find((e) => e.measurements && Object.keys(e.measurements).length > 0)
+  const monthAgo = weights.filter((w) => w.x <= now - 30 * 86400000).at(-1) ?? weights[0]
+  const change = latest && monthAgo && latest !== monthAgo ? latest.y - monthAgo.y : null
   const fats = entries.filter((e) => e.bodyFat !== undefined).map((e) => ({ x: e.date, y: e.bodyFat! }))
   const latestFat = fats.at(-1)
   const latestLean = [...entries].reverse().find((e) => e.leanMass !== undefined)
+  const lastMeasure = [...entries].reverse().find((e) => e.measurements && Object.keys(e.measurements).length > 0)
+  const todayHealth = daily[0]
+  const feel = todayEntry?.feel ?? [...entries].reverse().find((e) => e.feel)?.feel
 
   return (
     <div className="stack">
       <div className="page-head">
         <h1>Body</h1>
-        <button type="button" className="btn btn--primary btn--sm" onClick={() => setEditing(todayEntry ?? { date: today() })}>
-          {todayEntry ? 'Edit today' : '+ Log today'}
+        <button type="button" className="btn btn--sm" onClick={() => setEditing(todayEntry ?? { date: today() })}>
+          {todayEntry ? 'Edit today' : 'Log'}
         </button>
+      </div>
+
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="bigfig">
+          <div>
+            <div className="section--eyebrow section" style={{ margin: '0 0 6px' }}>Weight</div>
+            <div className="bigfig__value">
+              {latest ? latest.y : '—'} <span className="bigfig__unit">{unit}</span>
+            </div>
+          </div>
+          {change !== null ? (
+            <div style={{ textAlign: 'right' }}>
+              <div className={change <= 0 ? 'good' : ''} style={{ fontWeight: 600 }}>
+                {change > 0 ? '+' : ''}
+                {change.toFixed(1)} {unit}
+              </div>
+              <div className="muted small">last 30 days</div>
+            </div>
+          ) : null}
+        </div>
+        {weights.length >= 2 ? <LineChart points={weights.slice(-90)} height={130} /> : <p className="muted small">Log a few weigh-ins, or connect Health Connect, to see the trend.</p>}
       </div>
 
       <div className="stats">
         <div className="stat">
-          <div className="stat__value">{latest ? formatWeight(latest.y, unit) : '—'}</div>
-          <div className="stat__label">latest</div>
+          <div className="stat__value">{latestFat ? `${latestFat.y}%` : '—'}</div>
+          <div className="stat__label">Body fat</div>
         </div>
         <div className="stat">
-          <div className="stat__value">{avg ? formatWeight(Math.round(avg * 10) / 10, unit) : '—'}</div>
-          <div className="stat__label">7-day avg</div>
+          <div className="stat__value">{latestLean?.leanMass !== undefined ? latestLean.leanMass : '—'}</div>
+          <div className="stat__label">Lean {unit}</div>
         </div>
         <div className="stat">
-          <div className="stat__value">{latest && oldestRecent && latest !== oldestRecent ? `${latest.y - oldestRecent.y >= 0 ? '+' : ''}${(latest.y - oldestRecent.y).toFixed(1)}` : '—'}</div>
-          <div className="stat__label">30-day change</div>
+          <div className="stat__value">{todayHealth?.restingHr !== undefined ? Math.round(todayHealth.restingHr) : '—'}</div>
+          <div className="stat__label">Resting bpm</div>
         </div>
       </div>
 
-      {weights.length >= 2 ? (
-        <div className="card">
-          <div className="card__title">Bodyweight</div>
-          <LineChart points={weights.slice(-90)} />
+      <div>
+        <div className="row row--between" style={{ marginBottom: 10 }}>
+          <div className="section section--eyebrow" style={{ margin: 0 }}>Today</div>
+          {todayHealth ? <span className="muted small">Health Connect</span> : null}
         </div>
-      ) : null}
+        <ul className="list">
+          <li className="row row--between small" style={{ padding: '13px 18px' }}>
+            <span>Steps</span>
+            <span className="mono" style={{ fontWeight: 600 }}>{todayHealth?.steps !== undefined ? todayHealth.steps.toLocaleString() : '—'}</span>
+          </li>
+          <li className="row row--between small" style={{ padding: '13px 18px' }}>
+            <span>Sleep</span>
+            <span className="mono" style={{ fontWeight: 600 }}>{todayHealth?.sleepMin !== undefined ? `${Math.floor(todayHealth.sleepMin / 60)}h ${String(todayHealth.sleepMin % 60).padStart(2, '0')}m` : '—'}</span>
+          </li>
+          <li className="row row--between small" style={{ padding: '13px 18px' }}>
+            <span>Feel</span>
+            <span className="feelbar" aria-label={feel ? `Feel ${feel} of 5` : 'Not logged'}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <span key={i} className={feel && i <= feel ? 'on' : ''} />
+              ))}
+            </span>
+          </li>
+        </ul>
+      </div>
 
-      {latestFat || latestLean ? (
-        <div className="card">
-          <div className="row row--between">
-            <div className="card__title">Body composition</div>
-            <span className="muted small">from your scale</span>
+      {lastMeasure ? (
+        <div>
+          <div className="row row--between" style={{ marginBottom: 10 }}>
+            <div className="section section--eyebrow" style={{ margin: 0 }}>Measurements</div>
+            <span className="muted small">{formatDate(lastMeasure.date)}</span>
           </div>
-          <div className="stats" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-            <div className="stat">
-              <div className="stat__value">{latestFat ? `${latestFat.y}%` : '—'}</div>
-              <div className="stat__label">body fat</div>
-            </div>
-            <div className="stat">
-              <div className="stat__value">{latestLean?.leanMass !== undefined ? formatWeight(latestLean.leanMass, unit) : '—'}</div>
-              <div className="stat__label">lean mass</div>
-            </div>
-          </div>
-          {fats.length >= 2 ? <LineChart points={fats.slice(-90)} height={120} /> : null}
-        </div>
-      ) : null}
-
-      {daily.length > 0 ? (
-        <div className="card">
-          <div className="row row--between">
-            <div className="card__title">Last two weeks</div>
-            <span className="muted small">from Health Connect</span>
-          </div>
-          <ul className="list" style={{ gap: 2 }}>
-            {daily.map((d) => (
-              <li key={d.date} className="row row--between small">
-                <span className="muted">{formatDate(d.date)}</span>
-                <span className="mono">
-                  {d.steps !== undefined ? `${d.steps.toLocaleString()} steps` : ''}
-                  {d.sleepMin !== undefined ? ` · ${Math.floor(d.sleepMin / 60)}h ${String(d.sleepMin % 60).padStart(2, '0')} sleep` : ''}
-                  {d.restingHr !== undefined ? ` · ${Math.round(d.restingHr)} bpm` : ''}
-                </span>
-              </li>
-            ))}
+          <ul className="list">
+            {Object.entries(lastMeasure.measurements!).map(([k, v]) => {
+              const prev = [...entries].reverse().find((e) => e.date < lastMeasure.date && e.measurements?.[k] !== undefined)?.measurements?.[k]
+              return (
+                <li key={k} className="row row--between small" style={{ padding: '13px 18px' }}>
+                  <span>{k}</span>
+                  <span className="mono" style={{ fontWeight: 600 }}>
+                    {v} {prev !== undefined ? <span className={`small ${v - prev <= 0 ? 'good' : 'muted'}`}>{v - prev >= 0 ? '+' : ''}{(v - prev).toFixed(1)}</span> : null}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         </div>
       ) : null}
 
-      {lastMeasure ? (
-        <div className="card">
-          <div className="row row--between">
-            <div className="card__title">Measurements</div>
-            <span className="muted small">{formatDate(lastMeasure.date)}</span>
-          </div>
-          <div className="measure-grid">
-            {Object.entries(lastMeasure.measurements!).map(([k, v]) => {
-              const prev = [...entries].reverse().find((e) => e.date < lastMeasure.date && e.measurements?.[k] !== undefined)?.measurements?.[k]
-              return (
-                <div key={k} className="measure">
-                  <span className="muted small">{k}</span>
-                  <span className="mono">
-                    {v} {prev !== undefined ? <span className={`small ${v - prev >= 0 ? 'good' : 'bad'}`}>{v - prev >= 0 ? '+' : ''}{(v - prev).toFixed(1)}</span> : null}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ) : null}
-
       <div>
-        <h2>Log</h2>
-        {entries.length === 0 ? <div className="empty">Nothing logged yet. Weigh in, measure up, or just say how you feel.</div> : null}
+        <div className="section section--eyebrow">Log</div>
+        {entries.length === 0 ? <div className="empty">Nothing logged yet.</div> : null}
         <ul className="list">
-          {[...entries].reverse().map((e) => (
+          {[...entries].reverse().slice(0, 30).map((e) => (
             <li key={e.id}>
-              <button type="button" className="list__item" onClick={() => setEditing(e)}>
-                <span className="row row--between">
+              <button type="button" className="list__item" onClick={() => setEditing(e)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <span className="list__title">{formatDate(e.date)}</span>
-                  <span className="mono">{e.weight ? formatWeight(e.weight, unit) : ''}</span>
+                  <span className="list__meta">
+                    {[e.bodyFat !== undefined ? `${e.bodyFat}% fat` : null, e.source === 'health' ? 'scale' : null, e.feel ? `felt ${FEELS[e.feel - 1].toLowerCase()}` : null, e.notes].filter(Boolean).join(' · ')}
+                  </span>
                 </span>
-                <span className="list__meta">
-                  {e.bodyFat !== undefined ? `${e.bodyFat}% fat · ` : ''}
-                  {e.source === 'health' ? 'from scale · ' : ''}
-                  {e.feel ? `Felt ${FEELS[e.feel - 1].toLowerCase()}` : ''}
-                  {e.measurements && Object.keys(e.measurements).length ? ` · ${Object.keys(e.measurements).length} measurements` : ''}
-                  {e.notes ? ` · ${e.notes}` : ''}
-                </span>
+                <span className="mono" style={{ fontWeight: 600 }}>{e.weight ? formatWeight(e.weight, unit) : ''}</span>
               </button>
             </li>
           ))}

@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { db, exportAll, importAll, setSetting, wipeAll, type ExportBundle, type Unit } from '../db'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { useDefaultRest, useRestTimerEnabled, useUnit } from '../hooks/useSettings'
+import { useThemeChoice } from '../hooks/useTheme'
 import { convertWeight } from '../lib/progression'
 import { NumberField } from '../components/NumberField'
 import { beep, vibrate } from '../lib/alerts'
@@ -12,6 +14,9 @@ export function Settings() {
   const unit = useUnit()
   const defaultRest = useDefaultRest()
   const timerOn = useRestTimerEnabled()
+  const theme = useThemeChoice()
+  const name = useLiveQuery(async () => ((await db.settings.get('name'))?.value as string | undefined) ?? '', [], '')
+  const [nameDraft, setNameDraft] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<string | null>(null)
 
@@ -76,6 +81,21 @@ export function Settings() {
     <div className="stack">
       <div className="page-head">
         <h1>Settings</h1>
+      </div>
+
+      <div className="card">
+        <div className="card__title">Look</div>
+        <div className="segmented" role="group" aria-label="Theme">
+          {(['light', 'dark', 'system'] as const).map((t) => (
+            <button key={t} type="button" aria-pressed={theme === t} onClick={() => setSetting('theme', t)}>
+              {t[0].toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+        <label className="field" style={{ marginTop: 12 }}>
+          <span>Your name</span>
+          <input value={nameDraft ?? name} onChange={(e) => setNameDraft(e.target.value)} onBlur={() => nameDraft !== null && setSetting('name', nameDraft.trim())} placeholder="Shown on Home" />
+        </label>
       </div>
 
       <div className="card">

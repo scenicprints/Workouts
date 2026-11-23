@@ -1,14 +1,12 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronRight } from 'lucide-react'
 import { db } from '../db'
 import { useExerciseMap, useUnit } from '../hooks/useSettings'
 import { nextPlanWorkout, skipPlanDay, startRoutineSession } from '../lib/sessions'
 import { sessionSetCount, sessionVolume } from '../lib/progression'
-import { formatDuration, formatWeight, relativeDay, weeklyStreak } from '../lib/format'
-import { recentPRs, weeklyStats } from '../lib/stats'
-import { BarChart, LineChart } from '../components/Charts'
+import { formatDuration, relativeDay, weeklyStreak } from '../lib/format'
+import { weeklyStats } from '../lib/stats'
 
 function greeting(d: Date): string {
   const h = d.getHours()
@@ -16,6 +14,10 @@ function greeting(d: Date): string {
   if (h < 12) return 'Good morning'
   if (h < 17) return 'Good afternoon'
   return 'Good evening'
+}
+
+function short(n: number): string {
+  return n >= 10000 ? `${(n / 1000).toFixed(1)}k` : Math.round(n).toLocaleString()
 }
 
 export function Home() {
@@ -27,29 +29,33 @@ export function Home() {
   const next = useLiveQuery(() => nextPlanWorkout(), [])
   const finished = useLiveQuery(() => db.sessions.filter((s) => !!s.finishedAt && s.entries.length > 0).toArray(), [])
   const body = useLiveQuery(() => db.body.orderBy('date').toArray(), []) ?? []
-  const daily = useLiveQuery(() => db.daily.orderBy('date').reverse().limit(2).toArray(), []) ?? []
+  const name = useLiveQuery(async () => ((await db.settings.get('name'))?.value as string | undefined) ?? '', [], '')
 
   if (!finished || !exercises) return null
-  const today = daily[0]
 
   const weekly = weeklyStats(finished, 8, now)
   const thisWeek = weekly[weekly.length - 1]
   const streak = weeklyStreak(finished.map((s) => s.finishedAt!), now)
-  const prs = recentPRs(finished, exercises, 30, now).slice(0, 5)
   const recent = [...finished].sort((a, b) => b.finishedAt! - a.finishedAt!).slice(0, 3)
   const weights = body.filter((b) => b.weight).map((b) => ({ x: b.date, y: b.weight! }))
   const latestWeight = weights.at(-1)
-  const weekAgoWeight = weights.filter((w) => w.x <= now - 7 * 86400000).at(-1)
-  const lastFeel = [...body].reverse().find((b) => b.feel)
-  const latestFat = [...body].reverse().find((b) => b.bodyFat !== undefined)
+  const monthAgo = weights.filter((w) => w.x <= now - 30 * 86400000).at(-1) ?? weights[0]
+  const change = latestWeight && monthAgo && latestWeight !== monthAgo ? latestWeight.y - monthAgo.y : null
+  const maxVol = Math.max(...weekly.map((w) => w.volume), 1)
 
   return (
     <div className="stack">
       <div className="page-head">
         <div>
-          <div className="muted small">{greeting(new Date(now))}</div>
-          <h1>{new Date(now).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h1>
+          <div className="muted small">{new Date(now).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+          <h1>
+            {greeting(new Date(now))}
+            {name ? `, ${name}` : ''}
+          </h1>
         </div>
+        <Link to="/more" className="avatar" aria-label="Profile and more">
+          {(name || 'W').slice(0, 1).toUpperCase()}
+        </Link>
       </div>
 
       {active ? (
@@ -59,40 +65,53 @@ export function Home() {
           <div className="hero__meta">Started {formatDuration(now - active.startedAt)} ago</div>
           <Link className="btn btn--primary btn--block btn--lg" to="/workout">
             Continue workout
+            <Arrow />
           </Link>
         </div>
       ) : next && !next.complete && next.routine ? (
         <div className="hero">
-          <div className="hero__eyebrow">
-            {next.plan.name} · Week {next.week}
+          <div className="row row--between" style={{ alignItems: 'flex-start' }}>
+            <div>
+              <div className="hero__eyebrow">
+                Up next · Week {next.week}
+              </div>
+              <div className="hero__title">{next.routine.name}</div>
+              <div className="hero__meta">
+                {next.routine.items.length} exercises · {next.routine.items.reduce((a, i) => a + i.sets, 0)} sets
+                {next.isDeload ? ' · deload' : ''}
+              </div>
+            </div>
+            <span className="pill pill--accent">{next.label}</span>
           </div>
-          <div className="hero__title">{next.routine.name}</div>
-          <div className="hero__meta">
-            {next.label} · {next.routine.items.length} exercises
-            {next.isDeload ? ' · deload week' : ''}
+          <div className="hero__chips">
+            {next.routine.items.slice(0, 3).map((i) => (
+              <span key={i.exerciseId} className="hero__chip">
+                {exercises.get(i.exerciseId)?.name ?? '…'}
+              </span>
+            ))}
+            {next.routine.items.length > 3 ? <span className="hero__chip">+{next.routine.items.length - 3}</span> : null}
           </div>
-          <div className="row" style={{ flexWrap: 'nowrap' }}>
-            <button
-              type="button"
-              className="btn btn--primary btn--lg grow"
-              onClick={async () => {
-                await startRoutineSession(next.routine!, { plan: next.plan, unit })
-                navigate('/workout')
-              }}
-            >
-              Start workout
-            </button>
-            <button type="button" className="btn btn--lg" onClick={() => skipPlanDay(next.plan)}>
-              Skip
-            </button>
-          </div>
+          <button
+            type="button"
+            className="btn btn--primary btn--block btn--lg"
+            onClick={async () => {
+              await startRoutineSession(next.routine!, { plan: next.plan, unit })
+              navigate('/workout')
+            }}
+          >
+            Start workout
+            <Arrow />
+          </button>
+          <button type="button" className="btn btn--ghost btn--sm" style={{ alignSelf: 'center' }} onClick={() => skipPlanDay(next.plan)}>
+            Skip this day
+          </button>
         </div>
       ) : next && !next.complete ? (
         <div className="hero">
           <div className="hero__eyebrow">{next.plan.name}</div>
           <div className="hero__title">Rest day</div>
           <div className="hero__meta">{next.label}. Nothing scheduled.</div>
-          <button type="button" className="btn btn--block" onClick={() => skipPlanDay(next.plan)}>
+          <button type="button" className="btn btn--primary btn--block" onClick={() => skipPlanDay(next.plan)}>
             Mark rest day done
           </button>
         </div>
@@ -101,110 +120,46 @@ export function Home() {
           <div className="hero__eyebrow">No active plan</div>
           <div className="hero__title">Ready when you are</div>
           <div className="hero__meta">Start a routine, or generate a program in a minute.</div>
-          <div className="row" style={{ flexWrap: 'nowrap' }}>
-            <Link className="btn btn--primary btn--lg grow" to="/workout">
-              Start workout
-            </Link>
-            <Link className="btn btn--lg" to="/generate">
-              Generate
-            </Link>
-          </div>
+          <Link className="btn btn--primary btn--block btn--lg" to="/workout">
+            Start workout
+            <Arrow />
+          </Link>
+          <Link className="btn btn--ghost btn--sm" style={{ alignSelf: 'center' }} to="/generate">
+            Generate a program
+          </Link>
         </div>
       )}
 
-      <div>
-        <div className="section">This week</div>
-        <div className="stats">
-          <div className="stat">
-            <div className="stat__value">{thisWeek?.sessions ?? 0}</div>
-            <div className="stat__label">workouts</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="section--eyebrow section" style={{ margin: 0 }}>This week</div>
+          <div className="display" style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1 }}>
+            {short(thisWeek?.volume ?? 0)} <span className="muted" style={{ fontSize: '0.85rem', fontWeight: 500, letterSpacing: 0 }}>{unit}</span>
           </div>
-          <div className="stat">
-            <div className="stat__value">{Math.round(thisWeek?.volume ?? 0).toLocaleString()}</div>
-            <div className="stat__label">{unit} lifted</div>
-          </div>
-          <div className="stat">
-            <div className="stat__value">{streak}</div>
-            <div className="stat__label">week streak</div>
-          </div>
-        </div>
-      </div>
-
-      {today ? (
-        <div>
-          <div className="section">Today</div>
-          <div className="stats">
-            <div className="stat">
-              <div className="stat__value">{today.steps !== undefined ? today.steps.toLocaleString() : '—'}</div>
-              <div className="stat__label">steps</div>
-            </div>
-            <div className="stat">
-              <div className="stat__value">{today.sleepMin !== undefined ? `${Math.floor(today.sleepMin / 60)}h ${String(today.sleepMin % 60).padStart(2, '0')}` : '—'}</div>
-              <div className="stat__label">sleep</div>
-            </div>
-            <div className="stat">
-              <div className="stat__value">{today.restingHr !== undefined ? Math.round(today.restingHr) : '—'}</div>
-              <div className="stat__label">resting bpm</div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <div>
-        <div className="section">Volume · last 8 weeks</div>
-        <div className="card">
-          <BarChart bars={weekly.map((w, i) => ({ label: new Date(w.weekStart).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), value: w.volume, highlight: i === weekly.length - 1 }))} format={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v).toString())} />
-        </div>
-      </div>
-
-      <div>
-        <div className="section">Recent PRs</div>
-        {prs.length === 0 ? (
-          <div className="empty small">Log a few sessions and your best estimated one-rep maxes show up here.</div>
-        ) : (
-          <ul className="list">
-            {prs.map((p) => (
-              <li key={p.exerciseId}>
-                <Link className="list__item" to={`/exercises/${p.exerciseId}`} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>
-                    <span className="list__title">{p.name}</span>
-                    <br />
-                    <span className="list__meta">
-                      {p.reps} × {formatWeight(p.weight, unit)} · {relativeDay(p.date)}
-                    </span>
-                  </span>
-                  <span className="mono" style={{ fontWeight: 650 }}>
-                    {Math.round(p.e1rm)} <span className="muted small">e1RM</span>
-                  </span>
-                </Link>
-              </li>
+          <div className="bars" aria-label="Weekly volume, last 8 weeks">
+            {weekly.map((w, i) => (
+              <span key={w.weekStart} className={i === weekly.length - 1 ? 'is-now' : ''} style={{ height: `${Math.max(4, (w.volume / maxVol) * 100)}%` }} />
             ))}
-          </ul>
-        )}
-      </div>
-
-      <div>
-        <div className="section">Body</div>
-        <Link to="/body" className="card" style={{ display: 'block', color: 'inherit' }}>
-          <div className="row row--between">
-            <div>
-              <div style={{ fontSize: '1.3rem', fontWeight: 700, letterSpacing: '-0.02em' }}>{latestWeight ? formatWeight(latestWeight.y, unit) : '—'}</div>
-              <div className="muted small">
-                {latestWeight && weekAgoWeight ? `${latestWeight.y - weekAgoWeight.y >= 0 ? '+' : ''}${(latestWeight.y - weekAgoWeight.y).toFixed(1)} vs last week` : 'No weigh-ins yet'}
-                {latestFat ? ` · ${latestFat.bodyFat}% fat` : ''}
-                {lastFeel ? ` · feel ${lastFeel.feel}/5` : ''}
-              </div>
-            </div>
-            <ChevronRight size={20} className="muted" />
           </div>
-          {weights.length >= 2 ? <LineChart points={weights.slice(-30)} height={100} /> : null}
-        </Link>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
+            <div className="display" style={{ fontSize: '1.7rem', fontWeight: 700, lineHeight: 1 }}>{thisWeek?.sessions ?? 0}</div>
+            <div className="muted small">workouts · {streak} week streak</div>
+          </div>
+          <Link to="/body" className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
+            <div className="display" style={{ fontSize: '1.7rem', fontWeight: 700, lineHeight: 1 }}>{latestWeight ? latestWeight.y : '—'}</div>
+            <div className="muted small">
+              {unit} body{change !== null ? <span className={change <= 0 ? ' good' : ''}> · {change > 0 ? '+' : ''}{change.toFixed(1)}</span> : ''}
+            </div>
+          </Link>
+        </div>
       </div>
 
       <div>
-        <div className="row row--between" style={{ marginBottom: 8 }}>
-          <div className="section" style={{ margin: 0 }}>Recent workouts</div>
-          <Link to="/history" className="small">
+        <div className="row row--between" style={{ marginBottom: 10 }}>
+          <div className="section" style={{ margin: 0 }}>Recent</div>
+          <Link to="/history" className="small muted">
             See all
           </Link>
         </div>
@@ -214,10 +169,15 @@ export function Home() {
           <ul className="list">
             {recent.map((s) => (
               <li key={s.id}>
-                <Link className="list__item" to={`/history/${s.id}`}>
-                  <span className="list__title">{s.name}</span>
-                  <span className="list__meta">
-                    {relativeDay(s.finishedAt!)} · {sessionSetCount(s)} sets · {formatWeight(Math.round(sessionVolume(s)), unit)} · {formatDuration(s.finishedAt! - s.startedAt)}
+                <Link className="list__item" to={`/history/${s.id}`} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span className="list__title">{s.name}</span>
+                    <span className="list__meta">
+                      {relativeDay(s.finishedAt!)} · {sessionSetCount(s)} sets · {formatDuration(s.finishedAt! - s.startedAt)}
+                    </span>
+                  </span>
+                  <span className="mono" style={{ fontWeight: 600 }}>
+                    {Math.round(sessionVolume(s)).toLocaleString()} <span className="muted small">{unit}</span>
                   </span>
                 </Link>
               </li>
@@ -228,3 +188,12 @@ export function Home() {
     </div>
   )
 }
+
+function Arrow() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </svg>
+  )
+}
+

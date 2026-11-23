@@ -7,6 +7,7 @@ import { NumberPad } from './NumberPad'
 import { UpdateBanner } from './UpdateBanner'
 import { unlockAudio } from '../lib/alerts'
 import { useHealthAutoSync } from '../hooks/useHealthAutoSync'
+import { useApplyTheme } from '../hooks/useTheme'
 
 const tabs = [
   { to: '/', label: 'Home', icon: House, end: true },
@@ -19,6 +20,7 @@ const tabs = [
 export function Layout() {
   const active = useLiveQuery(() => db.sessions.where('finishedAt').equals(0).first(), [])
   useHealthAutoSync()
+  useApplyTheme()
   return (
     <div className="app" onPointerDown={unlockAudio}>
       <main className="page">

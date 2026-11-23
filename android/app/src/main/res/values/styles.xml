@@ -9,22 +9,23 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
-    <!-- Dark window so the system bars and any gap around the web view match the app. -->
+    <!-- Light window to match the app's default look; the app recolours the bars when dark mode is chosen. -->
     <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
-        <item name="android:windowBackground">#0B0F1A</item>
-        <item name="android:statusBarColor">#0B0F1A</item>
-        <item name="android:navigationBarColor">#0B0F1A</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowBackground">#F6F5F2</item>
+        <item name="android:statusBarColor">#F6F5F2</item>
+        <item name="android:navigationBarColor">#F6F5F2</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
-        <item name="android:statusBarColor">#0B0F1A</item>
-        <item name="android:navigationBarColor">#0B0F1A</item>
+        <item name="android:statusBarColor">#F6F5F2</item>
+        <item name="android:navigationBarColor">#F6F5F2</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>
