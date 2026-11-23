@@ -61,6 +61,7 @@ export function More() {
           {row('/library/routines', ListChecks, 'Routines', counts ? String(counts.routines) : undefined, 't-lime')}
           {row('/library/exercises', Dumbbell, 'Exercises', counts ? String(counts.exercises) : undefined, 't-lime')}
           {row('/generate', Sparkles, 'Generate a program', undefined, 't-amber')}
+          {row('/import', Download, 'Import a program', 'JSON from a coach or AI', 't-amber')}
         </ul>
       </div>
 

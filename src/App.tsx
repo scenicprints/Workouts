@@ -15,6 +15,7 @@ import { More } from './pages/More'
 import { Generate } from './pages/Generate'
 import { Friends } from './pages/Friends'
 import { Progress } from './pages/Progress'
+import { ImportProgram } from './pages/ImportProgram'
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="more" element={<More />} />
           <Route path="friends" element={<Friends />} />
           <Route path="progress" element={<Progress />} />
+          <Route path="import" element={<ImportProgram />} />
           <Route path="generate" element={<Generate />} />
           <Route path="library" element={<Library />} />
           <Route path="library/:tab" element={<Library />} />
