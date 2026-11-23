@@ -72,8 +72,8 @@ function PlanEditor({ initial }: { initial: Plan }) {
         <input value={plan.name} onChange={(e) => setPlan({ ...plan, name: e.target.value })} placeholder="e.g. 8-week strength block" autoFocus={!plan.id} />
       </label>
       <div className="row">
-        <NumberField label="Weeks" value={plan.weeks} onChange={(weeks) => setPlan({ ...plan, weeks: Math.max(1, weeks) })} min={1} compact />
-        <NumberField label="Deload every N weeks (0 = never)" value={plan.deloadEvery} onChange={(deloadEvery) => setPlan({ ...plan, deloadEvery })} min={0} compact />
+        <NumberField label="Weeks" value={plan.weeks} onChange={(weeks) => setPlan({ ...plan, weeks: Math.max(1, weeks) })} min={1} compact integer />
+        <NumberField label="Deload every N weeks (0 = never)" value={plan.deloadEvery} onChange={(deloadEvery) => setPlan({ ...plan, deloadEvery })} min={0} compact integer />
       </div>
       <label className="check">
         <input type="checkbox" checked={plan.active} onChange={(e) => setPlan({ ...plan, active: e.target.checked })} />

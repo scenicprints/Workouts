@@ -91,7 +91,7 @@ export function Settings() {
       <div className="card">
         <div className="card__title">Rest timer</div>
         <div className="row row--between">
-          <NumberField label="Default rest (seconds)" value={defaultRest} onChange={(v) => setSetting('defaultRest', Math.max(0, v))} step={15} />
+          <NumberField label="Default rest" suffix="s" value={defaultRest} onChange={(v) => setSetting('defaultRest', Math.max(0, v))} step={15} integer />
           <button
             type="button"
             className="btn btn--sm"

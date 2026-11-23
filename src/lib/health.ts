@@ -84,7 +84,7 @@ export async function syncHealth(options: { full?: boolean } = {}): Promise<Heal
       if (r.type === 'lean') cur.leanMass = Math.round(r.value * 10) / 10
       byDay.set(date, cur)
     }
-    const unit = await getSetting<'kg' | 'lb'>('unit', 'kg')
+    const unit = await getSetting<'kg' | 'lb'>('unit', 'lb')
     for (const [date, patch] of byDay) {
       const existing = await db.body.where('date').equals(date).first()
       const toUnit = (kg: number | undefined) => (kg === undefined ? undefined : unit === 'lb' ? Math.round(kg * 2.2046226218 * 10) / 10 : kg)

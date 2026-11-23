@@ -106,9 +106,9 @@ function RoutineEditor({ initial }: { initial: Routine }) {
               </div>
             </div>
             <div className="item-row__fields">
-              <NumberField label="Sets" value={item.sets} onChange={(sets) => patchItem(i, { sets: Math.max(1, sets) })} min={1} compact />
-              <NumberField label="Reps" value={item.reps} onChange={(reps) => patchItem(i, { reps: Math.max(1, reps) })} min={1} compact />
-              <NumberField label="Rest (s)" value={item.restSec} onChange={(restSec) => patchItem(i, { restSec })} step={15} compact />
+              <NumberField label="Sets" value={item.sets} onChange={(sets) => patchItem(i, { sets: Math.max(1, sets) })} min={1} compact integer />
+              <NumberField label="Reps" value={item.reps} onChange={(reps) => patchItem(i, { reps: Math.max(1, reps) })} min={1} compact integer />
+              <NumberField label="Rest" suffix="s" value={item.restSec} onChange={(restSec) => patchItem(i, { restSec })} step={15} compact integer />
               <NumberField label={`Start (${unit})`} value={item.weight} onChange={(weight) => patchItem(i, { weight })} step={step} compact />
               <NumberField label={`+ per win (${unit})`} value={item.increment} onChange={(increment) => patchItem(i, { increment })} step={unit === 'kg' ? 1.25 : 2.5} compact />
             </div>

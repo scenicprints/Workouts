@@ -4,11 +4,13 @@ import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.tsx'
 import { seedIfEmpty, topUpLibrary } from './db'
+import { ensureUnitDefault } from './hooks/useSettings'
 
 registerSW({ immediate: true })
 
 void seedIfEmpty()
   .then(() => topUpLibrary())
+  .then(() => ensureUnitDefault())
   .finally(() => {
     createRoot(document.getElementById('root')!).render(
       <StrictMode>

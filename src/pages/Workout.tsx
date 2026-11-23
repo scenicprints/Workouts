@@ -9,6 +9,7 @@ import { latestEntryFor, roundToPlate } from '../lib/progression'
 import { formatDuration, formatWeight } from '../lib/format'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { NumberField } from '../components/NumberField'
+import { closePad, openPad } from '../lib/pad'
 import { PlateCalculator } from '../components/PlateCalculator'
 import { onSessionFinished } from '../lib/health'
 
@@ -186,18 +187,23 @@ function ActiveWorkout({ session }: { session: Session }) {
 
   return (
     <div className="stack">
-      <div className="page-head">
+      <div className="session-head">
         <div>
-          <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 700 }}>
-            {formatDuration(now - session.startedAt)}
+          <div className="session-head__clock">{formatDuration(now - session.startedAt)}</div>
+          <div className="session-head__meta">
+            <span>{session.name}</span>
+            <span className="session-head__dot" />
+            <span>
+              {doneSets}/{totalSets} sets
+            </span>
           </div>
-          <span className="muted small">
-            {session.name} · {doneSets}/{totalSets} sets
-          </span>
         </div>
-        <button type="button" className="btn btn--primary" onClick={finish}>
+        <button type="button" className="btn btn--primary btn--pill" onClick={finish}>
           Finish
         </button>
+      </div>
+      <div className="session-progress" aria-hidden="true">
+        <div style={{ width: `${totalSets ? (doneSets / totalSets) * 100 : 0}%` }} />
       </div>
 
       {/* Exercise bar: one exercise at a time, swipe-free tabs. */}
@@ -210,7 +216,11 @@ function ActiveWorkout({ session }: { session: Session }) {
             <button key={`${e.exerciseId}-${i}`} type="button" role="tab" aria-selected={i === current} className={`exbar__tab${i === current ? ' exbar__tab--active' : ''}${complete ? ' exbar__tab--done' : ''}`} onClick={() => setIndex(i)}>
               <span className="exbar__name">{exercises?.get(e.exerciseId)?.name ?? 'Exercise'}</span>
               <span className="exbar__meta">
+                {complete ? '✓ ' : ''}
                 {done}/{work.length}
+              </span>
+              <span className="exbar__bar">
+                <span style={{ width: `${work.length ? (done / work.length) * 100 : 0}%` }} />
               </span>
             </button>
           )
@@ -251,6 +261,10 @@ function ActiveWorkout({ session }: { session: Session }) {
   )
 }
 
+function formatNum(v: number): string {
+  return Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100)
+}
+
 function firstUnfinished(session: Session): number {
   const i = session.entries.findIndex((e) => e.sets.some((s) => !s.done))
   return i === -1 ? Math.max(0, session.entries.length - 1) : i
@@ -286,15 +300,15 @@ function ExercisePanel({ entry, exercise, unit, previous, isLast, onLog, onUpdat
     else labels.push({ label: `${++work}`, prev: prevWork[work - 1] })
   }
   return (
-    <div className="card">
+    <div className="card card--exercise">
       <div className="exercise__head">
         <div>
-          <h2 style={{ margin: 0 }}>
+          <h2 className="exercise__title">
             <Link to={`/exercises/${entry.exerciseId}`}>{exercise?.name ?? 'Exercise'}</Link>
           </h2>
           <span className="muted small">
-            Rest {entry.restSec}s
-            {prevWork.length ? ` · last: ${prevWork.map((s) => `${s.reps}×${s.weight}`).join(', ')}` : ' · first time'}
+            {exercise?.muscle ? `${exercise.muscle} · ` : ''}rest {entry.restSec}s
+            {prevWork.length ? ` · last ${prevWork.map((s) => `${s.reps}×${s.weight}`).join(', ')}` : ''}
           </span>
         </div>
         <button type="button" className="btn btn--ghost btn--sm" onClick={() => setMenu((m) => !m)} aria-label="Exercise options" aria-expanded={menu}>
@@ -304,7 +318,7 @@ function ExercisePanel({ entry, exercise, unit, previous, isLast, onLog, onUpdat
       {menu ? (
         <div className="stack" style={{ marginBottom: 12 }}>
           <div className="row">
-            <NumberField label="Rest (s)" value={entry.restSec} onChange={onRest} step={15} compact />
+            <NumberField label="Rest" suffix="s" value={entry.restSec} onChange={onRest} step={15} compact integer />
             <button type="button" className="btn btn--sm" onClick={() => onAddSet('warmup')}>
               + Warm-up set
             </button>
@@ -326,7 +340,6 @@ function ExercisePanel({ entry, exercise, unit, previous, isLast, onLog, onUpdat
       <div className="setgrid" role="table">
         <div className="setgrid__head" role="row">
           <span>Set</span>
-          <span>Last</span>
           <span>{unit}</span>
           <span>Reps</span>
           <span />
@@ -335,38 +348,70 @@ function ExercisePanel({ entry, exercise, unit, previous, isLast, onLog, onUpdat
           const isWarm = set.kind === 'warmup'
           const { label, prev } = labels[si]
           const isNext = si === nextUp
+          const hint = prev ? `last ${prev.reps} × ${prev.weight}` : set.targetWeight ? `target ${set.targetReps} × ${set.targetWeight}` : isWarm ? 'warm-up' : 'first time'
+          const openReps = () =>
+            openPad({
+              value: set.reps,
+              label: `Set ${label} · reps`,
+              step: 1,
+              allowDecimal: false,
+              onChange: (reps) => onUpdate(si, { reps }),
+              primary: {
+                label: set.done ? 'Done' : 'Log set',
+                onPress: () => {
+                  closePad()
+                  if (!set.done) onLog(si)
+                },
+              },
+            })
+          const openWeight = () =>
+            openPad({
+              value: set.weight,
+              label: `Set ${label} · ${unit}`,
+              unit,
+              step,
+              allowDecimal: true,
+              onChange: (weight) => onUpdate(si, { weight }),
+              primary: { label: 'Next', onPress: openReps },
+            })
           return (
             <div key={si} className={`setgrid__row${set.done ? ' setgrid__row--done' : ''}${isNext ? ' setgrid__row--next' : ''}${isWarm ? ' setgrid__row--warm' : ''}`} role="row">
-              <button type="button" className="setgrid__num" onClick={() => onRemoveSet(si)} title="Remove set" aria-label={`Remove set ${label}`}>
-                {label}
+              <button type="button" className="setgrid__lead" onClick={() => (prev ? onUpdate(si, { weight: prev.weight, reps: prev.reps }) : onRemoveSet(si))} title={prev ? 'Use last time' : 'Remove set'}>
+                <span className="setgrid__num">{label}</span>
+                <span className="setgrid__hint">{hint}</span>
               </button>
-              <button type="button" className="setgrid__prev" onClick={() => prev && onUpdate(si, { weight: prev.weight, reps: prev.reps })} title={prev ? 'Use last time' : undefined} disabled={!prev}>
-                {prev ? `${prev.reps}×${prev.weight}` : set.targetWeight ? `${set.targetReps}×${set.targetWeight}` : '—'}
+              <button type="button" className="setgrid__val" onClick={openWeight} aria-label={`Set ${label} weight`}>
+                {formatNum(set.weight)}
+                <span className="setgrid__unit">{unit}</span>
               </button>
-              <NumberField value={set.weight} onChange={(weight) => onUpdate(si, { weight })} step={step} compact />
-              <NumberField value={set.reps} onChange={(reps) => onUpdate(si, { reps })} step={1} compact />
+              <button type="button" className="setgrid__val" onClick={openReps} aria-label={`Set ${label} reps`}>
+                {set.reps}
+                <span className="setgrid__unit">reps</span>
+              </button>
               <button type="button" className="set__check" aria-pressed={set.done} onClick={() => onLog(si)} aria-label={set.done ? 'Mark set not done' : 'Log set'}>
-                ✓
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m5 12 5 5L20 7" />
+                </svg>
               </button>
             </div>
           )
         })}
       </div>
 
-      <div className="row" style={{ marginTop: 10 }}>
+      <div className="row" style={{ marginTop: 12 }}>
         <button type="button" className="btn btn--ghost btn--sm" onClick={() => onAddSet('work')}>
           + Add set
         </button>
         <span className="grow" />
         {allDone && !isLast ? (
-          <button type="button" className="btn btn--primary btn--sm" onClick={onNext}>
+          <button type="button" className="btn btn--primary btn--sm btn--pill" onClick={onNext}>
             Next exercise ›
           </button>
         ) : allDone && isLast ? (
-          <span className="muted small">Last exercise done. Hit Finish.</span>
+          <span className="muted small">All done. Hit Finish.</span>
         ) : nextUp >= 0 ? (
           <span className="muted small">
-            Next: {entry.sets[nextUp].reps} × {formatWeight(entry.sets[nextUp].weight, unit)}
+            Up next: {entry.sets[nextUp].reps} × {formatWeight(entry.sets[nextUp].weight, unit)}
           </span>
         ) : null}
       </div>

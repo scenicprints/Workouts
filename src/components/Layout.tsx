@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
 import { RestTimerBar } from './RestTimerBar'
+import { NumberPad } from './NumberPad'
 import { unlockAudio } from '../lib/alerts'
 import { useHealthAutoSync } from '../hooks/useHealthAutoSync'
 
@@ -22,6 +23,7 @@ export function Layout() {
         <Outlet />
       </main>
       <RestTimerBar />
+      <NumberPad />
       <nav className="tabbar" aria-label="Main">
         {tabs.map((t) => (
           <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => `tab${isActive ? ' tab--active' : ''}`}>

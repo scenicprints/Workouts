@@ -1,3 +1,5 @@
+import { closePad, openPad } from '../lib/pad'
+
 interface Props {
   value: number
   onChange: (v: number) => void
@@ -6,33 +8,34 @@ interface Props {
   label?: string
   suffix?: string
   compact?: boolean
+  /** Whole numbers only (reps, sets, seconds). */
+  integer?: boolean
 }
 
-export function NumberField({ value, onChange, step = 1, min = 0, label, suffix, compact }: Props) {
-  const set = (v: number) => onChange(Math.max(min, Math.round(v * 100) / 100))
+function format(v: number): string {
+  return Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100)
+}
+
+/** A tappable number that opens the shared keypad. Replaces the old stepper everywhere. */
+export function NumberField({ value, onChange, step = 1, min = 0, label, suffix, compact, integer }: Props) {
+  const open = () =>
+    openPad({
+      value,
+      label: label ?? suffix ?? 'Value',
+      unit: suffix,
+      step,
+      min,
+      allowDecimal: !integer,
+      onChange,
+      primary: { label: 'Done', onPress: closePad },
+    })
   return (
     <div className={`numfield${compact ? ' numfield--compact' : ''}`}>
       {label ? <span className="numfield__label">{label}</span> : null}
-      <div className="numfield__row">
-        <button type="button" className="numfield__btn" onClick={() => set(value - step)} aria-label={`Decrease ${label ?? ''}`}>
-          −
-        </button>
-        <input
-          type="number"
-          inputMode="decimal"
-          className="numfield__input"
-          value={Number.isNaN(value) ? '' : value}
-          min={min}
-          step={step}
-          onChange={(e) => set(e.target.value === '' ? 0 : Number(e.target.value))}
-          onFocus={(e) => e.target.select()}
-          aria-label={label}
-        />
-        <button type="button" className="numfield__btn" onClick={() => set(value + step)} aria-label={`Increase ${label ?? ''}`}>
-          +
-        </button>
-      </div>
-      {suffix ? <span className="numfield__suffix">{suffix}</span> : null}
+      <button type="button" className="numfield__value" onClick={open} aria-label={label}>
+        {format(value)}
+        {suffix ? <span className="numfield__suffix">{suffix}</span> : null}
+      </button>
     </div>
   )
 }

@@ -65,8 +65,8 @@ export function Generate() {
       <div className="card">
         <div className="card__title">Schedule</div>
         <div className="row">
-          <NumberField label="Days per week" value={days} onChange={(v) => setDays(Math.max(2, Math.min(6, v)))} min={2} compact />
-          <NumberField label="Weeks" value={weeks} onChange={(v) => setWeeks(Math.max(2, Math.min(16, v)))} min={2} compact />
+          <NumberField label="Days per week" value={days} onChange={(v) => setDays(Math.max(2, Math.min(6, v)))} min={2} compact integer />
+          <NumberField label="Weeks" value={weeks} onChange={(v) => setWeeks(Math.max(2, Math.min(16, v)))} min={2} compact integer />
         </div>
         <div className="field" style={{ marginTop: 10 }}>
           <span>Session length</span>
