@@ -6,6 +6,7 @@ import { NumberField } from '../components/NumberField'
 import { beep, vibrate } from '../lib/alerts'
 import { loadSyncConfig, saveSyncConfig, testSync, type SyncConfig } from '../lib/sync'
 import { HealthSettings } from '../components/HealthSettings'
+import { AppSettings } from '../components/AppSettings'
 
 export function Settings() {
   const unit = useUnit()
@@ -107,6 +108,8 @@ export function Settings() {
           Used for freeform exercises. Routines set their own rest per exercise.
         </p>
       </div>
+
+      <AppSettings />
 
       <HealthSettings onStatus={setStatus} />
 

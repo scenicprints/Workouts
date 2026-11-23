@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
 import { RestTimerBar } from './RestTimerBar'
 import { NumberPad } from './NumberPad'
+import { UpdateBanner } from './UpdateBanner'
 import { unlockAudio } from '../lib/alerts'
 import { useHealthAutoSync } from '../hooks/useHealthAutoSync'
 
@@ -20,6 +21,7 @@ export function Layout() {
   return (
     <div className="app" onPointerDown={unlockAudio}>
       <main className="page">
+        <UpdateBanner />
         <Outlet />
       </main>
       <RestTimerBar />
