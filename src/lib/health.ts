@@ -8,7 +8,7 @@ import { db, getSetting, setSetting, type BodyEntry, type DailyEntry } from '../
 interface HealthConnectPlugin {
   isAvailable(): Promise<{ available: boolean; status: 'available' | 'update_required' | 'unavailable' }>
   hasPermissions(): Promise<{ granted: boolean; count: number }>
-  requestPermissions(): Promise<{ granted: boolean; count: number }>
+  requestHealthPermissions(): Promise<{ granted: boolean; count: number }>
   readBody(o: { since: number }): Promise<{ records: { type: 'weight' | 'fat' | 'lean'; time: number; value: number }[] }>
   readDaily(o: { since: number }): Promise<{ days: { date: number; steps?: number; sleepMin?: number; restingHr?: number }[] }>
   readSessionVitals(o: { start: number; end: number }): Promise<{ hrAvg?: number; hrMax?: number; calories?: number }>
@@ -43,7 +43,7 @@ export async function healthStatus(): Promise<{ native: boolean; available: bool
 }
 
 export async function connectHealth(): Promise<boolean> {
-  const r = await HealthConnect.requestPermissions()
+  const r = await HealthConnect.requestHealthPermissions()
   if (r.granted) await healthPrefs.set({ ...(await healthPrefs.get()), enabled: true })
   return r.granted
 }

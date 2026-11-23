@@ -92,7 +92,7 @@ class HealthConnectPlugin : Plugin() {
     }
 
     @PluginMethod
-    fun requestPermissions(call: PluginCall) {
+    fun requestHealthPermissions(call: PluginCall) {
         try {
             val intent = PermissionController.createRequestPermissionResultContract().createIntent(context, permissions)
             startActivityForResult(call, intent, "onPermissionResult")
