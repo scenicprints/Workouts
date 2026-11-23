@@ -228,7 +228,7 @@ function ActiveWorkout({ session }: { session: Session }) {
               </span>
               {complete ? (
                 <span className="set__check" aria-pressed="true" style={{ width: 36, height: 36 }}>
-                  <Check size={18} strokeWidth={3} />
+                  <Check size={16} strokeWidth={2} />
                 </span>
               ) : (
                 <ChevronDown size={20} className="muted" />
@@ -394,7 +394,7 @@ function ExercisePanel({ entry, exercise, unit, previous, timerOn, onLog, onUpda
                 {set.reps}
               </button>
               <button type="button" className="set__check" aria-pressed={set.done} onClick={() => onLog(si)} aria-label={set.done ? 'Mark set not done' : 'Log set'}>
-                <Check size={22} strokeWidth={3} />
+                <Check size={20} strokeWidth={2} />
               </button>
             </div>
           )

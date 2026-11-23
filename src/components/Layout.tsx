@@ -33,7 +33,7 @@ export function Layout() {
         {tabs.map((t) => (
           <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => `tab ${t.cls}${isActive ? ' tab--active' : ''}`}>
             <span className="tab__icon">
-              <t.icon size={24} strokeWidth={2} aria-hidden="true" />
+              <t.icon size={22} strokeWidth={1.5} aria-hidden="true" />
               {t.to === '/workout' && active ? <span className="tab__dot" aria-label="Workout in progress" /> : null}
             </span>
             <span className="tab__label">{t.label}</span>
