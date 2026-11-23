@@ -21,6 +21,11 @@ export async function ensureUnitDefault(): Promise<void> {
   await db.settings.put({ key: 'unit', value: logged + routines > 0 ? 'kg' : DEFAULT_UNIT })
 }
 
+/** Rest timers are opt-in. Nothing starts after a set unless this is switched on. */
+export function useRestTimerEnabled(): boolean {
+  return useLiveQuery(async () => ((await db.settings.get('restTimerEnabled'))?.value as boolean | undefined) ?? false, [], false)
+}
+
 export function useDefaultRest(): number {
   return useLiveQuery(
     async () => ((await db.settings.get('defaultRest'))?.value as number | undefined) ?? DEFAULT_REST,

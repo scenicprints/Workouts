@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Check, MoreHorizontal, Plus } from 'lucide-react'
 import { db, type Exercise, type Session, type SessionEntry, type SetEntry, type Unit } from '../db'
-import { useDefaultRest, useExerciseMap, useUnit } from '../hooks/useSettings'
+import { useDefaultRest, useExerciseMap, useRestTimerEnabled, useUnit } from '../hooks/useSettings'
 import { restTimer } from '../hooks/useRestTimer'
 import { discardSession, finishSession, nextPlanWorkout, startEmptySession, startRoutineSession } from '../lib/sessions'
 import { latestEntryFor, roundToPlate } from '../lib/progression'
@@ -76,6 +76,7 @@ function ActiveWorkout({ session }: { session: Session }) {
   const navigate = useNavigate()
   const unit = useUnit()
   const defaultRest = useDefaultRest()
+  const timerOn = useRestTimerEnabled()
   const exercises = useExerciseMap()
   const [picking, setPicking] = useState<'add' | 'swap' | null>(null)
   const [index, setIndex] = useState(() => firstUnfinished(session))
@@ -106,7 +107,7 @@ function ActiveWorkout({ session }: { session: Session }) {
       return s
     })
     void save(session.entries.map((x, i) => (i === ei ? { ...x, sets } : x)))
-    if (done) restTimer.start(set.kind === 'warmup' ? Math.min(60, e.restSec || defaultRest) : e.restSec || defaultRest)
+    if (done && timerOn) restTimer.start(set.kind === 'warmup' ? Math.min(60, e.restSec || defaultRest) : e.restSec || defaultRest)
   }
   function addSet(ei: number, kind: 'work' | 'warmup' = 'work') {
     const e = session.entries[ei]
@@ -240,6 +241,7 @@ function ActiveWorkout({ session }: { session: Session }) {
           exercise={exercises?.get(entry.exerciseId)}
           unit={unit}
           previous={latestEntryFor(history, entry.exerciseId)}
+          timerOn={timerOn}
           isLast={current >= session.entries.length - 1}
           onLog={(si) => logSet(current, si)}
           onUpdate={(si, patch) => updateSet(current, si, patch)}
@@ -252,7 +254,7 @@ function ActiveWorkout({ session }: { session: Session }) {
         />
       )}
 
-      <button type="button" className="btn btn--ghost btn--danger btn--block" onClick={discard}>
+      <button type="button" className="btn btn--ghost btn--danger btn--block btn--sm" onClick={discard}>
         Discard workout
       </button>
 
@@ -276,6 +278,7 @@ interface PanelProps {
   exercise: Exercise | undefined
   unit: Unit
   previous: SessionEntry | undefined
+  timerOn: boolean
   isLast: boolean
   onLog: (si: number) => void
   onUpdate: (si: number, patch: Partial<SetEntry>) => void
@@ -287,7 +290,7 @@ interface PanelProps {
   onNext: () => void
 }
 
-function ExercisePanel({ entry, exercise, unit, previous, isLast, onLog, onUpdate, onAddSet, onRemoveSet, onRemove, onRest, onSwap, onNext }: PanelProps) {
+function ExercisePanel({ entry, exercise, unit, previous, timerOn, isLast, onLog, onUpdate, onAddSet, onRemoveSet, onRemove, onRest, onSwap, onNext }: PanelProps) {
   const [menu, setMenu] = useState(false)
   const [plates, setPlates] = useState<number | null>(null)
   const step = unit === 'kg' ? 2.5 : 5
@@ -308,8 +311,7 @@ function ExercisePanel({ entry, exercise, unit, previous, isLast, onLog, onUpdat
             <Link to={`/exercises/${entry.exerciseId}`}>{exercise?.name ?? 'Exercise'}</Link>
           </h2>
           <span className="muted small">
-            {exercise?.muscle ? `${exercise.muscle} · ` : ''}rest {entry.restSec}s
-            {prevWork.length ? ` · last ${prevWork.map((s) => `${s.reps}×${s.weight}`).join(', ')}` : ''}
+            {[exercise?.muscle, timerOn ? `rest ${entry.restSec}s` : null, prevWork.length ? `last ${prevWork.map((s) => `${formatNum(s.weight)}×${s.reps}`).join(', ')}` : null].filter(Boolean).join(' · ')}
           </span>
         </div>
         <button type="button" className="btn btn--icon" onClick={() => setMenu((m) => !m)} aria-label="Exercise options" aria-expanded={menu}>
@@ -319,7 +321,7 @@ function ExercisePanel({ entry, exercise, unit, previous, isLast, onLog, onUpdat
       {menu ? (
         <div className="stack" style={{ marginBottom: 12 }}>
           <div className="row">
-            <NumberField label="Rest" suffix="s" value={entry.restSec} onChange={onRest} step={15} compact integer />
+            {timerOn ? <NumberField label="Rest" suffix="s" value={entry.restSec} onChange={onRest} step={15} compact integer /> : null}
             <button type="button" className="btn btn--sm" onClick={() => onAddSet('warmup')}>
               + Warm-up set
             </button>
