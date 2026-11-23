@@ -5,6 +5,7 @@ import { db, type Exercise, type Routine, type RoutineItem } from '../db'
 import { useDefaultRest, useExerciseMap, useUnit } from '../hooks/useSettings'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { NumberField } from '../components/NumberField'
+import { newGroupId } from '../lib/superset'
 
 export function RoutineEdit() {
   const { id } = useParams()
@@ -105,6 +106,24 @@ function RoutineEditor({ initial }: { initial: Routine }) {
                 </button>
               </div>
             </div>
+            {i < routine.items.length - 1 ? (
+              <label className="check" style={{ marginTop: 8, borderBottom: 0, padding: '4px 0' }}>
+                <input
+                  type="checkbox"
+                  checked={!!item.group && item.group === routine.items[i + 1].group}
+                  onChange={(e) => {
+                    const next = routine.items[i + 1]
+                    if (e.target.checked) {
+                      const g = item.group ?? next.group ?? newGroupId()
+                      setRoutine({ ...routine, items: routine.items.map((it, j) => (j === i || j === i + 1 ? { ...it, group: g } : it)) })
+                    } else {
+                      setRoutine({ ...routine, items: routine.items.map((it, j) => (j === i + 1 ? { ...it, group: undefined } : it)) })
+                    }
+                  }}
+                />
+                <span className="small muted">Superset with {exercises?.get(routine.items[i + 1].exerciseId)?.name ?? 'next'}</span>
+              </label>
+            ) : null}
             <div className="item-row__fields">
               <NumberField label="Sets" value={item.sets} onChange={(sets) => patchItem(i, { sets: Math.max(1, sets) })} min={1} compact integer />
               <NumberField label="Reps" value={item.reps} onChange={(reps) => patchItem(i, { reps: Math.max(1, reps) })} min={1} compact integer />

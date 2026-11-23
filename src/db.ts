@@ -44,6 +44,8 @@ export interface RoutineItem {
   weight: number
   /** How much to add when every set hits the target reps. */
   increment: number
+  /** Items sharing a group id form a superset and alternate set by set. */
+  group?: string
 }
 
 export interface Routine {
@@ -90,6 +92,8 @@ export interface SessionEntry {
   restSec: number
   increment: number
   sets: SetEntry[]
+  /** Entries sharing a group id form a superset and alternate set by set. */
+  group?: string
 }
 
 export interface Session {

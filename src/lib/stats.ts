@@ -70,6 +70,50 @@ export function weeklyStats(sessions: Session[], weeks = 8, now = Date.now()): W
   return out
 }
 
+/** Working sets per muscle group per week, oldest week first. Muscles sorted by total. */
+export function weeklySetsByMuscle(sessions: Session[], exercises: Map<number, Exercise>, weeks = 8, now = Date.now()): { weeks: number[]; muscles: { muscle: string; sets: number[]; total: number }[] } {
+  const starts: number[] = []
+  const thisMonday = mondayOf(now)
+  for (let i = weeks - 1; i >= 0; i--) starts.push(mondayOf(thisMonday - i * 7 * 86400000 + 12 * 3600000))
+  const table = new Map<string, number[]>()
+  for (const s of sessions) {
+    if (!s.finishedAt) continue
+    const wi = starts.indexOf(mondayOf(s.finishedAt))
+    if (wi === -1) continue
+    for (const e of s.entries) {
+      const muscle = exercises.get(e.exerciseId)?.muscle ?? 'Other'
+      const row = table.get(muscle) ?? new Array(weeks).fill(0)
+      row[wi] += e.sets.filter((x) => x.done && x.kind !== 'warmup').length
+      table.set(muscle, row)
+    }
+  }
+  const muscles = [...table.entries()].map(([muscle, sets]) => ({ muscle, sets, total: sets.reduce((a, b) => a + b, 0) })).sort((a, b) => b.total - a.total)
+  return { weeks: starts, muscles }
+}
+
+/** Every time an exercise's estimated 1RM beat its previous best, newest first. */
+export function prTimeline(sessions: Session[], exercises: Map<number, Exercise>): (LiftRecord & { previous: number })[] {
+  const best = new Map<number, number>()
+  const out: (LiftRecord & { previous: number })[] = []
+  for (const s of [...sessions].filter((x) => !!x.finishedAt).sort((a, b) => a.finishedAt! - b.finishedAt!)) {
+    for (const e of s.entries) {
+      let top: { weight: number; reps: number; e1rm: number } | null = null
+      for (const set of e.sets) {
+        if (!set.done || set.kind === 'warmup') continue
+        const e1rm = estimate1RM(set.weight, set.reps)
+        if (e1rm > 0 && (!top || e1rm > top.e1rm)) top = { weight: set.weight, reps: set.reps, e1rm }
+      }
+      if (!top) continue
+      const prev = best.get(e.exerciseId) ?? 0
+      if (top.e1rm > prev + 1e-9) {
+        best.set(e.exerciseId, top.e1rm)
+        if (prev > 0) out.push({ exerciseId: e.exerciseId, name: exercises.get(e.exerciseId)?.name ?? 'Exercise', weight: top.weight, reps: top.reps, e1rm: top.e1rm, date: s.finishedAt!, sessionId: s.id!, previous: prev })
+      }
+    }
+  }
+  return out.reverse()
+}
+
 export interface Summary {
   name: string
   updatedAt: number

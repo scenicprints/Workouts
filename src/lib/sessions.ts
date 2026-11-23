@@ -45,6 +45,7 @@ export async function startRoutineSession(routine: Routine, options: StartOption
       exerciseId: item.exerciseId,
       restSec: item.restSec,
       increment: item.increment,
+      group: item.group,
       sets: blankSets(item.sets, target.weight, target.reps),
     }
   })

@@ -132,7 +132,9 @@ export function Home() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div className="section--eyebrow section" style={{ margin: 0 }}>This week</div>
+          <Link to="/progress" className="section--eyebrow section" style={{ margin: 0, display: 'block' }}>
+            This week →
+          </Link>
           <div className="display c-sky" style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1 }}>
             {short(thisWeek?.volume ?? 0)} <span className="muted" style={{ fontSize: '0.85rem', fontWeight: 500, letterSpacing: 0 }}>{unit}</span>
           </div>

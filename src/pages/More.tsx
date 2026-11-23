@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Calendar, ChevronRight, Dumbbell, Download, HeartPulse, ListChecks, Settings as SettingsIcon, Sparkles, Users } from 'lucide-react'
+import { Calendar, ChevronRight, Dumbbell, Download, HeartPulse, ListChecks, Settings as SettingsIcon, Sparkles, TrendingUp, Users } from 'lucide-react'
 import { db } from '../db'
 import { useUnit, useRestTimerEnabled } from '../hooks/useSettings'
 import { useUpdateState } from '../lib/update'
@@ -56,6 +56,7 @@ export function More() {
       <div>
         <div className="section section--eyebrow">Training</div>
         <ul className="list">
+          {row('/progress', TrendingUp, 'Progress', counts ? `${counts.total} workouts` : undefined, 't-sky')}
           {row(counts?.plan ? `/plans/${counts.plan.id}` : '/library/plans', Calendar, 'Plan', counts?.plan?.name ?? 'None', 't-violet')}
           {row('/library/routines', ListChecks, 'Routines', counts ? String(counts.routines) : undefined, 't-lime')}
           {row('/library/exercises', Dumbbell, 'Exercises', counts ? String(counts.exercises) : undefined, 't-lime')}
