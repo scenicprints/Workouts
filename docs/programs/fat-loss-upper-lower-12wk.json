@@ -1,9 +1,8 @@
 {
   "name": "Fat Loss Upper/Lower 12wk",
-  "notes": "12-week fat-loss block, 5 days (Mon-Fri), 3 upper + 2 lower sessions, no barbell squats. Every weight starts at 0: the app suggests one from anything you have logged for that exercise, otherwise pick a weight you could do for 3 more reps than the target on the first session. Compounds add the increment each time you hit every set. Isolation lifts run a rep range: reps climb one at a time to the top, then the weight goes up and reps drop back. Miss twice at the same weight and the app drops it 10%. Finish every session with the 25-minute incline walk at 120-135 bpm. Weeks 4, 8 and 12 are deloads: weights -10% and one set fewer per exercise, automatically. Target 8,000-10,000 steps a day, 190-200 g protein, and a weekly-average weight loss of 1-2 lb.",
+  "notes": "12-week fat-loss block, 5 days (Mon-Fri), 3 upper + 2 lower sessions, no barbell squats. Every weight starts at 0: on the first session pick a weight you could do for 3 more reps than the target, then let the app add the increment each time you hit every set. Isolation lifts use double progression: the rep number is the top of the range (start 3 reps below it, add reps yourself until every set hits it, then the app raises the weight). Finish every session with the 25-minute incline walk at 120-135 bpm. Weeks 4, 8 and 12 are deloads: the app drops weights 10%; also drop one set from each exercise yourself. Target 8,000-10,000 steps a day, 190-200 g protein, and a weekly-average weight loss of 1-2 lb.",
   "weeks": 12,
   "deloadEvery": 4,
-  "deloadDropSet": true,
   "unit": "lb",
   "days": [
     { "label": "Mon", "routine": "Upper A" },
@@ -22,10 +21,10 @@
         { "exercise": "Dumbbell Bench Press", "sets": 4, "reps": 8, "weight": 0, "increment": 5, "restSec": 150 },
         { "exercise": "Chest-Supported Row", "sets": 4, "reps": 8, "weight": 0, "increment": 5, "restSec": 120 },
         { "exercise": "Lat Pulldown", "sets": 3, "reps": 10, "weight": 0, "increment": 5, "restSec": 120 },
-        { "exercise": "Pec Deck", "sets": 3, "reps": 12, "minReps": 9, "weight": 0, "increment": 5, "restSec": 75 },
-        { "exercise": "Face Pull", "sets": 3, "reps": 15, "minReps": 12, "weight": 0, "increment": 5, "restSec": 60 },
-        { "exercise": "Tricep Pushdown", "sets": 3, "reps": 12, "minReps": 9, "weight": 0, "increment": 5, "restSec": 60, "superset": "S1" },
-        { "exercise": "Cable Curl", "sets": 2, "reps": 15, "minReps": 12, "weight": 0, "increment": 5, "restSec": 60, "superset": "S1" },
+        { "exercise": "Pec Deck", "sets": 3, "reps": 12, "weight": 0, "increment": 5, "restSec": 75 },
+        { "exercise": "Face Pull", "sets": 3, "reps": 15, "weight": 0, "increment": 5, "restSec": 60 },
+        { "exercise": "Tricep Pushdown", "sets": 3, "reps": 12, "weight": 0, "increment": 5, "restSec": 60, "superset": "S1" },
+        { "exercise": "Cable Curl", "sets": 2, "reps": 15, "weight": 0, "increment": 5, "restSec": 60, "superset": "S1" },
         { "exercise": "Incline Treadmill Walk", "sets": 1, "reps": 25, "weight": 0, "increment": 0, "restSec": 0, "muscle": "Other", "equipment": "Cardio" }
       ]
     },
@@ -35,10 +34,10 @@
       "exercises": [
         { "exercise": "Leg Press", "sets": 4, "reps": 10, "weight": 0, "increment": 10, "restSec": 150 },
         { "exercise": "Romanian Deadlift", "sets": 4, "reps": 8, "weight": 0, "increment": 5, "restSec": 150 },
-        { "exercise": "Leg Extension", "sets": 3, "reps": 12, "minReps": 9, "weight": 0, "increment": 5, "restSec": 75 },
-        { "exercise": "Leg Curl", "sets": 3, "reps": 12, "minReps": 9, "weight": 0, "increment": 5, "restSec": 75 },
-        { "exercise": "Calf Raise", "sets": 4, "reps": 12, "minReps": 9, "weight": 0, "increment": 5, "restSec": 60 },
-        { "exercise": "Cable Crunch", "sets": 3, "reps": 15, "minReps": 12, "weight": 0, "increment": 5, "restSec": 60 },
+        { "exercise": "Leg Extension", "sets": 3, "reps": 12, "weight": 0, "increment": 5, "restSec": 75 },
+        { "exercise": "Leg Curl", "sets": 3, "reps": 12, "weight": 0, "increment": 5, "restSec": 75 },
+        { "exercise": "Calf Raise", "sets": 4, "reps": 12, "weight": 0, "increment": 5, "restSec": 60 },
+        { "exercise": "Cable Crunch", "sets": 3, "reps": 15, "weight": 0, "increment": 5, "restSec": 60 },
         { "exercise": "Incline Treadmill Walk", "sets": 1, "reps": 25, "weight": 0, "increment": 0, "restSec": 0, "muscle": "Other", "equipment": "Cardio" }
       ]
     },
@@ -50,10 +49,10 @@
         { "exercise": "Lat Pulldown", "sets": 3, "reps": 8, "weight": 0, "increment": 5, "restSec": 120 },
         { "exercise": "Incline Dumbbell Press", "sets": 3, "reps": 10, "weight": 0, "increment": 5, "restSec": 120 },
         { "exercise": "Seated Cable Row", "sets": 3, "reps": 10, "weight": 0, "increment": 5, "restSec": 120 },
-        { "exercise": "Lateral Raise", "sets": 3, "reps": 15, "minReps": 12, "weight": 0, "increment": 5, "restSec": 60, "superset": "S1" },
-        { "exercise": "Rear Delt Fly", "sets": 3, "reps": 15, "minReps": 12, "weight": 0, "increment": 5, "restSec": 60, "superset": "S1" },
-        { "exercise": "Overhead Tricep Extension", "sets": 3, "reps": 12, "minReps": 9, "weight": 0, "increment": 5, "restSec": 60 },
-        { "exercise": "Hammer Curl", "sets": 2, "reps": 12, "minReps": 9, "weight": 0, "increment": 5, "restSec": 60 },
+        { "exercise": "Lateral Raise", "sets": 3, "reps": 15, "weight": 0, "increment": 5, "restSec": 60, "superset": "S1" },
+        { "exercise": "Rear Delt Fly", "sets": 3, "reps": 15, "weight": 0, "increment": 5, "restSec": 60, "superset": "S1" },
+        { "exercise": "Overhead Tricep Extension", "sets": 3, "reps": 12, "weight": 0, "increment": 5, "restSec": 60 },
+        { "exercise": "Hammer Curl", "sets": 2, "reps": 12, "weight": 0, "increment": 5, "restSec": 60 },
         { "exercise": "Incline Treadmill Walk", "sets": 1, "reps": 25, "weight": 0, "increment": 0, "restSec": 0, "muscle": "Other", "equipment": "Cardio" }
       ]
     },
@@ -64,8 +63,8 @@
         { "exercise": "Hip Thrust", "sets": 4, "reps": 8, "weight": 0, "increment": 10, "restSec": 150 },
         { "exercise": "Dumbbell Squat", "sets": 3, "reps": 10, "weight": 0, "increment": 5, "restSec": 120, "muscle": "Legs", "equipment": "Dumbbell" },
         { "exercise": "Leg Press", "sets": 3, "reps": 12, "weight": 0, "increment": 10, "restSec": 120 },
-        { "exercise": "Leg Curl", "sets": 3, "reps": 10, "minReps": 7, "weight": 0, "increment": 5, "restSec": 90 },
-        { "exercise": "Seated Calf Raise", "sets": 4, "reps": 15, "minReps": 12, "weight": 0, "increment": 5, "restSec": 60 },
+        { "exercise": "Leg Curl", "sets": 3, "reps": 10, "weight": 0, "increment": 5, "restSec": 90 },
+        { "exercise": "Seated Calf Raise", "sets": 4, "reps": 15, "weight": 0, "increment": 5, "restSec": 60 },
         { "exercise": "Hanging Leg Raise", "sets": 3, "reps": 12, "weight": 0, "increment": 0, "restSec": 60 },
         { "exercise": "Incline Treadmill Walk", "sets": 1, "reps": 25, "weight": 0, "increment": 0, "restSec": 0, "muscle": "Other", "equipment": "Cardio" }
       ]
@@ -76,12 +75,12 @@
       "exercises": [
         { "exercise": "Machine Chest Press", "sets": 3, "reps": 10, "weight": 0, "increment": 5, "restSec": 120 },
         { "exercise": "Dumbbell Row", "sets": 3, "reps": 10, "weight": 0, "increment": 5, "restSec": 90 },
-        { "exercise": "Cable Fly", "sets": 2, "reps": 15, "minReps": 12, "weight": 0, "increment": 5, "restSec": 60 },
-        { "exercise": "Straight-Arm Pulldown", "sets": 2, "reps": 15, "minReps": 12, "weight": 0, "increment": 5, "restSec": 60 },
-        { "exercise": "Lateral Raise", "sets": 3, "reps": 15, "minReps": 12, "weight": 0, "increment": 5, "restSec": 60 },
-        { "exercise": "Face Pull", "sets": 2, "reps": 15, "minReps": 12, "weight": 0, "increment": 5, "restSec": 60 },
-        { "exercise": "Skull Crusher", "sets": 3, "reps": 12, "minReps": 9, "weight": 0, "increment": 5, "restSec": 60, "superset": "S1" },
-        { "exercise": "Bicep Curl", "sets": 2, "reps": 15, "minReps": 12, "weight": 0, "increment": 5, "restSec": 60, "superset": "S1" },
+        { "exercise": "Cable Fly", "sets": 2, "reps": 15, "weight": 0, "increment": 5, "restSec": 60 },
+        { "exercise": "Straight-Arm Pulldown", "sets": 2, "reps": 15, "weight": 0, "increment": 5, "restSec": 60 },
+        { "exercise": "Lateral Raise", "sets": 3, "reps": 15, "weight": 0, "increment": 5, "restSec": 60 },
+        { "exercise": "Face Pull", "sets": 2, "reps": 15, "weight": 0, "increment": 5, "restSec": 60 },
+        { "exercise": "Skull Crusher", "sets": 3, "reps": 12, "weight": 0, "increment": 5, "restSec": 60, "superset": "S1" },
+        { "exercise": "Bicep Curl", "sets": 2, "reps": 15, "weight": 0, "increment": 5, "restSec": 60, "superset": "S1" },
         { "exercise": "Incline Treadmill Walk", "sets": 1, "reps": 25, "weight": 0, "increment": 0, "restSec": 0, "muscle": "Other", "equipment": "Cardio" }
       ]
     }

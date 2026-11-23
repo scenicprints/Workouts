@@ -229,6 +229,12 @@ function ActiveWorkout({ session }: { session: Session }) {
             <span>
               {doneSets} of {totalSets} sets
             </span>
+            {session.readiness ? (
+              <>
+                <span className="session-head__dot" />
+                <span title={session.readiness.reasons.join('\n')}>{session.readiness.earlyDeload ? 'Early deload' : `Readiness ${session.readiness.level}`}</span>
+              </>
+            ) : null}
           </div>
         </div>
         <button type="button" className="btn btn--primary" onClick={finish}>
@@ -462,6 +468,7 @@ function ExercisePanel(p: PanelProps) {
           <span className="muted small">
             {[p.exercise?.muscle, p.timerOn ? `rest ${p.entry.restSec}s` : null, prevWork.length ? `last ${prevWork.map((s) => `${formatNum(s.weight)}×${s.reps}`).join(', ')}` : null].filter(Boolean).join(' · ')}
           </span>
+          {p.entry.note ? <span className="small" style={{ display: 'block' }}>{p.entry.note}</span> : null}
         </div>
         <ExerciseMenu p={p} open={false} onToggle={() => setMenu((m) => !m)} onPlates={() => setPlates(p.entry.sets[nextUp === -1 ? p.entry.sets.length - 1 : nextUp]?.weight ?? 0)} />
       </div>
@@ -510,6 +517,7 @@ function SupersetPanel({ panels, names }: { panels: PanelProps[]; names: string[
               <Link to={`/exercises/${p.entry.exerciseId}`}>{names[i]}</Link>
             </h2>
             <span className="muted small">{labelled[i].prevWork.length ? `last ${labelled[i].prevWork.map((s) => `${formatNum(s.weight)}×${s.reps}`).join(', ')}` : p.exercise?.muscle}</span>
+            {p.entry.note ? <span className="small" style={{ display: 'block' }}>{p.entry.note}</span> : null}
           </div>
           <ExerciseMenu p={p} open={false} onToggle={() => setMenu((m) => (m === i ? null : i))} onPlates={() => setPlates(p.entry.sets.find((s) => !s.done)?.weight ?? 0)} />
         </div>

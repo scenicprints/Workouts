@@ -101,6 +101,18 @@ export interface SessionEntry {
   sets: SetEntry[]
   /** Entries sharing a group id form a superset and alternate set by set. */
   group?: string
+  /** Why the target is what it is this session ("+5 lb", "held: recovery amber"). Set when the session starts. */
+  note?: string
+}
+
+/** The readiness read taken when a session started, kept so the session can explain itself later. */
+export interface SessionReadiness {
+  level: 'green' | 'amber' | 'red'
+  score: number
+  /** One line per signal that moved the score. */
+  reasons: string[]
+  /** True when this session was made a deload by readiness rather than by the plan's schedule. */
+  earlyDeload?: boolean
 }
 
 export interface Session {
@@ -121,6 +133,8 @@ export interface Session {
   calories?: number
   /** Health Connect record id once the session has been written there. */
   healthId?: string
+  /** How recovered you were when this session started, and what that did to the targets. */
+  readiness?: SessionReadiness
 }
 
 export interface BodyEntry {
@@ -139,12 +153,16 @@ export interface BodyEntry {
   source?: 'manual' | 'health'
 }
 
-/** One row per local day from Health Connect: steps, sleep and resting heart rate. */
+/** One row per local day from Health Connect: steps, sleep, resting heart rate, and what was eaten. */
 export interface DailyEntry {
   date: number
   steps?: number
   sleepMin?: number
   restingHr?: number
+  /** Calories eaten that day, from nutrition records (BodyComp writes them). */
+  kcal?: number
+  /** Grams of protein eaten that day. */
+  protein?: number
 }
 
 export interface Setting {

@@ -90,6 +90,49 @@ describe('nextTarget after two misses', () => {
   })
 })
 
+describe('nextTarget under readiness rules', () => {
+  const clean = entry([[5, 100], [5, 100], [5, 100]])
+  it('holds the weight after a clean session when increases are off', () => {
+    expect(nextTarget(item, clean, { allowIncrease: false })).toEqual({ weight: 100, reps: 5, reason: 'held' })
+  })
+  it('still climbs reps in a range when only increases are off', () => {
+    const ranged: RoutineItem = { ...item, reps: 12, minReps: 8 }
+    expect(nextTarget(ranged, entry([[8, 60], [8, 60]], 8), { allowIncrease: false })).toEqual({ weight: 60, reps: 9, reason: 'reps' })
+    expect(nextTarget(ranged, entry([[12, 60], [12, 60]], 12), { allowIncrease: false })).toEqual({ weight: 60, reps: 12, reason: 'held' })
+  })
+  it('holds reps too when rep climbs are off', () => {
+    const ranged: RoutineItem = { ...item, reps: 12, minReps: 8 }
+    expect(nextTarget(ranged, entry([[9, 60], [9, 60]], 9), { allowIncrease: false, allowRepClimb: false })).toEqual({ weight: 60, reps: 9, reason: 'held' })
+  })
+  it('jumps two increments when every set beat its target by two reps', () => {
+    expect(nextTarget(item, entry([[7, 100], [8, 100], [7, 100]]))).toEqual({ weight: 105, reps: 5, reason: 'jump' })
+    expect(nextTarget(item, entry([[7, 100], [6, 100]])).reason).toBe('increase')
+  })
+  it('does not jump when increases are off', () => {
+    expect(nextTarget(item, entry([[7, 100], [8, 100]]), { allowIncrease: false }).reason).toBe('held')
+  })
+})
+
+describe('nextTarget while cutting', () => {
+  const miss = (reps: number[]) => entry(reps.map((r) => [r, 100] as [number, number]))
+  it('keeps repeating after two misses when reps held steady', () => {
+    expect(nextTarget(item, miss([5, 5, 3]), { history: [miss([5, 5, 3])], cutting: true, unit: 'kg' })).toEqual({ weight: 100, reps: 5, reason: 'repeat' })
+  })
+  it('resets after two misses when reps fell', () => {
+    expect(nextTarget(item, miss([5, 4, 2]), { history: [miss([5, 5, 3])], cutting: true, unit: 'kg' })).toEqual({ weight: 90, reps: 5, reason: 'reset' })
+  })
+  it('resets after four misses whatever the reps did', () => {
+    const h = miss([5, 5, 4])
+    expect(nextTarget(item, h, { history: [h, h], cutting: true, unit: 'kg' }).reason).toBe('repeat')
+    expect(nextTarget(item, h, { history: [h, h, h], cutting: true, unit: 'kg' }).reason).toBe('reset')
+  })
+  it('counts the run of misses from history, newest first', () => {
+    const win = entry([[5, 100], [5, 100], [5, 100]])
+    expect(nextTarget(item, miss([5, 4, 3]), { history: [win, miss([5, 5, 3])], unit: 'kg' }).reason).toBe('repeat')
+    expect(nextTarget(item, miss([5, 4, 3]), { history: [miss([5, 5, 3]), win], unit: 'kg' }).reason).toBe('reset')
+  })
+})
+
 describe('suggestStartingWeight', () => {
   const sessions: Session[] = [
     { id: 1, name: 'Old', startedAt: 1, finishedAt: 100, routineId: 3, entries: [entry([[8, 100], [8, 100]], 8)] },

@@ -36,7 +36,19 @@ export function workingWeight(sets: SetEntry[]): number | null {
 export interface Target {
   weight: number
   reps: number
-  reason: 'start' | 'suggested' | 'repeat' | 'increase' | 'reps' | 'reset' | 'deload'
+  reason: 'start' | 'suggested' | 'repeat' | 'increase' | 'jump' | 'reps' | 'held' | 'reset' | 'deload'
+}
+
+/** Total reps across completed work sets. */
+export function totalReps(sets: SetEntry[]): number {
+  return sets.filter((s) => s.done && s.kind !== 'warmup').reduce((a, s) => a + s.reps, 0)
+}
+
+/** True when every completed work set beat its target by `margin` or more: the weight was plainly too light. */
+export function overshot(sets: SetEntry[], margin = 2): boolean {
+  const done = sets.filter((s) => s.done && s.kind !== 'warmup' && s.targetReps !== undefined)
+  if (done.length === 0) return false
+  return done.every((s) => s.reps >= (s.targetReps as number) + margin)
 }
 
 /** The rep target the last session was working to (the highest target among its work sets). */
@@ -54,10 +66,21 @@ export function hasRepRange(item: Pick<RoutineItem, 'reps' | 'minReps'>): boolea
 export interface NextTargetOptions {
   isDeload?: boolean
   unit?: Unit
-  /** The entry before `previous`, used to spot two misses in a row. */
+  /** The entry before `previous`, used to spot two misses in a row. Superseded by `history` when given. */
   earlier?: SessionEntry
+  /** Entries before `previous`, newest first, for counting a run of misses. */
+  history?: SessionEntry[]
   /** Used when the routine has no starting weight (0) and there is no history yet. */
   suggestedWeight?: number
+  /** Readiness says the weight may go up after a clean session. Default true. */
+  allowIncrease?: boolean
+  /** Readiness says reps may climb within a range. Default true. */
+  allowRepClimb?: boolean
+  /**
+   * Bodyweight is trending down. Holding a weight is then a win, so a reset needs reps to fall
+   * between two misses, or four misses in a row, rather than two misses of any kind.
+   */
+  cutting?: boolean
 }
 
 /**
@@ -65,35 +88,56 @@ export interface NextTargetOptions {
  * - No history: the routine's starting weight, or a suggestion when that is 0.
  * - Hit every set: add the increment. With a rep range, reps climb first and the weight goes up
  *   only once every set hits the top of the range; reps then drop back to the bottom.
+ * - Beat every set by two or more reps: the weight was too light, so add the increment twice.
+ * - Readiness can hold the weight (and the reps) in place after a clean session.
  * - Missed: repeat the same weight and reps.
- * - Missed twice in a row at the same weight: drop 10% instead of repeating a third time.
+ * - Missed twice in a row at the same weight: drop 10% instead of repeating a third time. While
+ *   cutting, only when reps fell between the two misses, or after four misses in a row.
  * - Deload week: 90% of what it would otherwise be, rounded to a plate.
  */
 export function nextTarget(item: RoutineItem, previous: SessionEntry | undefined, options: NextTargetOptions = {}): Target {
   const unit = options.unit ?? 'kg'
   const ranged = hasRepRange(item)
   const bottom = ranged ? (item.minReps as number) : item.reps
+  const allowIncrease = options.allowIncrease ?? true
+  const allowRepClimb = options.allowRepClimb ?? true
   let weight = item.weight
   let reps = bottom
   let reason: Target['reason'] = 'start'
   const last = previous ? workingWeight(previous.sets) : null
   if (previous && last !== null) {
     const lastReps = Math.min(Math.max(targetRepsOf(previous) ?? bottom, bottom), item.reps)
+    const increment = previous.increment || item.increment
     if (hitAllTargets(previous.sets)) {
-      if (ranged && lastReps < item.reps) {
+      if (!allowIncrease && (!ranged || lastReps >= item.reps || !allowRepClimb)) {
+        weight = last
+        reps = lastReps
+        reason = 'held'
+      } else if (overshot(previous.sets) && allowIncrease) {
+        weight = last + increment * 2
+        reason = 'jump'
+      } else if (ranged && lastReps < item.reps) {
         weight = last
         reps = lastReps + 1
         reason = 'reps'
       } else {
-        weight = last + (previous.increment || item.increment)
+        weight = last + increment
         reason = 'increase'
       }
     } else {
       weight = last
       reps = lastReps
       reason = 'repeat'
-      const before = options.earlier
-      if (before && !hitAllTargets(before.sets) && workingWeight(before.sets) === last && (targetRepsOf(before) ?? bottom) === lastReps) {
+      const sameTarget = (e: SessionEntry) => !hitAllTargets(e.sets) && workingWeight(e.sets) === last && (targetRepsOf(e) ?? bottom) === lastReps
+      const older = options.history ?? (options.earlier ? [options.earlier] : [])
+      let misses = 1
+      for (const e of older) {
+        if (!sameTarget(e)) break
+        misses++
+      }
+      const fell = older.length > 0 && sameTarget(older[0]) && totalReps(previous.sets) < totalReps(older[0].sets)
+      const reset = options.cutting ? (misses >= 2 && fell) || misses >= 4 : misses >= 2
+      if (reset) {
         weight = roundToPlate(last * 0.9, unit)
         reps = bottom
         reason = 'reset'

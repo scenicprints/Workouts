@@ -3,9 +3,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
 import { useUnit } from '../hooks/useSettings'
 import { planPosition } from '../lib/progression'
-import { jumpPlanTo, skipPlanDay, startRoutineSession } from '../lib/sessions'
+import { currentReadiness, jumpPlanTo, skipPlanDay, startRoutineSession } from '../lib/sessions'
 import { formatDate } from '../lib/format'
 import { canFlag, healthFlags } from '../lib/flags'
+import { ReadinessCard } from '../components/Readiness'
 
 export function PlanDetail() {
   const { id } = useParams()
@@ -20,6 +21,7 @@ export function PlanDetail() {
     const [daily, body] = await Promise.all([db.daily.where('date').above(now - 29 * 86400000).toArray(), db.body.where('date').above(now - 15 * 86400000).toArray()])
     return { enough: canFlag(daily, body, now), flags: healthFlags(daily, body, unit, now) }
   }, [unit])
+  const readiness = useLiveQuery(() => currentReadiness(unit), [unit])
 
   if (plan === undefined) return null
   if (!plan) return <div className="empty">Plan not found.</div>
@@ -118,6 +120,8 @@ export function PlanDetail() {
           </>
         )}
       </div>
+
+      {readiness ? <ReadinessCard readiness={{ ...readiness, earlyDeload: readiness.rules.deload && !pos.isDeload }} title="Readiness for the next session" /> : null}
 
       {health?.enough ? (
         <div className="card">
