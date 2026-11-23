@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { WorkoutsDB, seedIfEmpty } from '../db'
 import { importProgram, validateProgram, type ProgramFile } from '../lib/importProgram'
+import fatLoss from '../../docs/programs/fat-loss-upper-lower-12wk.json'
 
 let database: WorkoutsDB
 beforeEach(async () => {
@@ -23,7 +24,7 @@ const program: ProgramFile = {
       name: 'A',
       exercises: [
         { exercise: 'bench press', sets: 4, reps: 6, weight: 80, increment: 2.5 },
-        { exercise: 'Lateral Raise', sets: 3, reps: 15, weight: 8, superset: 'S1' },
+        { exercise: 'Lateral Raise', sets: 3, reps: 15, minReps: 12, weight: 8, superset: 'S1' },
         { exercise: 'Face Pull', sets: 3, reps: 15, weight: 20, superset: 'S1' },
         { exercise: 'Banded Pull-Apart', sets: 2, reps: 20, muscle: 'Shoulders', equipment: 'Band' },
       ],
@@ -33,6 +34,12 @@ const program: ProgramFile = {
 
 describe('validateProgram', () => {
   it('accepts a good file', () => expect(validateProgram(program).ok).toBe(true))
+  it('rejects a bad rep range', () => {
+    const v = validateProgram({ ...program, routines: [{ name: 'A', exercises: [{ exercise: 'Bench Press', sets: 3, reps: 8, minReps: 8 }] }] })
+    expect(v.ok).toBe(false)
+    if (!v.ok) expect(v.errors.join(' ')).toMatch(/minReps/)
+  })
+  it('accepts the fat-loss program a coach AI produced', () => expect(validateProgram(fatLoss)).toMatchObject({ ok: true }))
   it('explains problems', () => {
     const v = validateProgram({ ...program, days: [{ label: 'Monday', routine: 'B' }] })
     expect(v.ok).toBe(false)
@@ -55,10 +62,25 @@ describe('importProgram', () => {
     const routine = (await database.routines.get(r.routineIds[0]))!
     expect(routine.items).toHaveLength(4)
     expect(routine.items[0].weight).toBeCloseTo(176.25, 1) // 80 kg → lb, plate-rounded
+    expect(routine.items[1].minReps).toBe(12)
+    expect(routine.items[0].minReps).toBeUndefined()
     expect(routine.items[1].group).toBeDefined()
     expect(routine.items[1].group).toBe(routine.items[2].group)
     expect(routine.items[3].group).toBeUndefined()
     expect(routine.items[3].increment).toBe(5)
+  })
+  it('imports the fat-loss program: 5 routines, 2 custom exercises, supersets intact', async () => {
+    const r = await importProgram({ ...(fatLoss as ProgramFile), deloadDropSet: true }, { unit: 'lb', database })
+    expect(r.createdExercises.sort()).toEqual(['Dumbbell Squat', 'Incline Treadmill Walk'])
+    expect(r.warnings).toEqual([])
+    expect(r.routineIds).toHaveLength(5)
+    const plan = (await database.plans.get(r.planId))!
+    expect(plan).toMatchObject({ weeks: 12, deloadEvery: 4, deloadDropSet: true })
+    expect(plan.days.map((d) => d.routineId === null)).toEqual([false, false, false, false, false, true, true])
+    const upperA = (await database.routines.get(r.routineIds[0]))!
+    const groups = upperA.items.map((i) => i.group)
+    expect(groups.filter(Boolean)).toHaveLength(2)
+    expect(groups[5]).toBe(groups[6])
   })
   it('drops a one-member superset with a warning', async () => {
     const r = await importProgram({ ...program, routines: [{ name: 'A', exercises: [{ exercise: 'Bench Press', sets: 3, reps: 5, superset: 'solo' }] }] }, { unit: 'kg', database })

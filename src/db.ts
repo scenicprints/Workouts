@@ -44,6 +44,11 @@ export interface RoutineItem {
   weight: number
   /** How much to add when every set hits the target reps. */
   increment: number
+  /**
+   * Bottom of a rep range. When set (and below `reps`), the exercise uses double progression:
+   * reps climb from here to `reps`, then the weight goes up and reps drop back to here.
+   */
+  minReps?: number
   /** Items sharing a group id form a superset and alternate set by set. */
   group?: string
 }
@@ -71,6 +76,8 @@ export interface Plan {
   days: PlanDay[]
   /** Every Nth week is a deload (weights drop 10%). 0 disables. */
   deloadEvery: number
+  /** On deload weeks, also drop one set from every exercise. */
+  deloadDropSet?: boolean
   active: boolean
   /** Index of the next day to do, counting across weeks. You move it; the app never guesses. */
   cursor: number

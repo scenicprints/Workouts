@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Plan, RoutineItem, Session, SessionEntry } from '../db'
-import { estimate1RM, hitAllTargets, latestEntryFor, nextTarget, planPosition, roundToPlate, workingWeight } from '../lib/progression'
+import { estimate1RM, hitAllTargets, latestEntryFor, nextTarget, planPosition, recentEntriesFor, roundToPlate, suggestStartingWeight, workingWeight } from '../lib/progression'
 import { weeklyStreak } from '../lib/format'
 
 const item: RoutineItem = { exerciseId: 1, sets: 3, reps: 5, restSec: 120, weight: 60, increment: 2.5 }
@@ -55,6 +55,72 @@ describe('nextTarget', () => {
     const prev = entry([[5, 60]])
     prev.increment = 5
     expect(nextTarget(item, prev).weight).toBe(65)
+  })
+})
+
+describe('nextTarget with a rep range (double progression)', () => {
+  const ranged: RoutineItem = { ...item, reps: 12, minReps: 8 }
+  it('starts at the bottom of the range', () => {
+    expect(nextTarget(ranged, undefined)).toEqual({ weight: 60, reps: 8, reason: 'start' })
+  })
+  it('adds a rep, not weight, after a clean session below the top', () => {
+    expect(nextTarget(ranged, entry([[8, 60], [8, 60], [8, 60]], 8))).toEqual({ weight: 60, reps: 9, reason: 'reps' })
+  })
+  it('adds weight and resets reps once every set hits the top', () => {
+    expect(nextTarget(ranged, entry([[12, 60], [12, 60], [12, 60]], 12))).toEqual({ weight: 62.5, reps: 8, reason: 'increase' })
+  })
+  it('repeats the same reps after a miss', () => {
+    expect(nextTarget(ranged, entry([[10, 60], [10, 60], [9, 60]], 10))).toEqual({ weight: 60, reps: 10, reason: 'repeat' })
+  })
+  it('treats an old fixed-rep entry as the bottom of the range', () => {
+    expect(nextTarget(ranged, entry([[5, 60], [5, 60]], 5))).toEqual({ weight: 60, reps: 9, reason: 'reps' })
+  })
+})
+
+describe('nextTarget after two misses', () => {
+  it('drops 10% instead of repeating a third time', () => {
+    const miss = entry([[5, 100], [5, 100], [3, 100]])
+    expect(nextTarget(item, miss, { earlier: miss, unit: 'kg' })).toEqual({ weight: 90, reps: 5, reason: 'reset' })
+  })
+  it('only counts misses at the same weight', () => {
+    expect(nextTarget(item, entry([[5, 100], [3, 100]]), { earlier: entry([[5, 110], [3, 110]]), unit: 'kg' })).toEqual({ weight: 100, reps: 5, reason: 'repeat' })
+  })
+  it('does not reset after a miss that followed a win', () => {
+    expect(nextTarget(item, entry([[5, 100], [3, 100]]), { earlier: entry([[5, 97.5], [5, 97.5]]), unit: 'kg' }).reason).toBe('repeat')
+  })
+})
+
+describe('suggestStartingWeight', () => {
+  const sessions: Session[] = [
+    { id: 1, name: 'Old', startedAt: 1, finishedAt: 100, routineId: 3, entries: [entry([[8, 100], [8, 100]], 8)] },
+  ]
+  it('uses the start weight when the routine has one', () => {
+    expect(nextTarget(item, undefined, { suggestedWeight: 80 })).toEqual({ weight: 60, reps: 5, reason: 'start' })
+  })
+  it('suggests when the routine weight is 0', () => {
+    expect(nextTarget({ ...item, weight: 0 }, undefined, { suggestedWeight: 80 })).toEqual({ weight: 80, reps: 5, reason: 'suggested' })
+  })
+  it('reuses the last weight at the same rep target', () => {
+    expect(suggestStartingWeight(sessions, 1, 8, 'lb')).toBe(100)
+  })
+  it('scales 90% of the estimated max to a new rep target, rounded to a plate', () => {
+    // e1RM 126.7 -> at 5 reps 108.6 -> 90% = 97.7 -> 100 lb
+    expect(suggestStartingWeight(sessions, 1, 5, 'lb')).toBe(100)
+    expect(suggestStartingWeight(sessions, 1, 5, 'kg')).toBe(97.5)
+  })
+  it('has nothing to say without history', () => {
+    expect(suggestStartingWeight(sessions, 2, 5, 'lb')).toBeUndefined()
+  })
+})
+
+describe('recentEntriesFor', () => {
+  it('returns newest first and respects the count', () => {
+    const sessions: Session[] = [
+      { id: 1, name: 'A', startedAt: 1, finishedAt: 100, routineId: 7, entries: [entry([[5, 50]])] },
+      { id: 2, name: 'A', startedAt: 2, finishedAt: 200, routineId: 7, entries: [entry([[5, 55]])] },
+      { id: 3, name: 'A', startedAt: 3, finishedAt: 300, routineId: 7, entries: [entry([[5, 60]])] },
+    ]
+    expect(recentEntriesFor(sessions, 1, 7, 2).map((e) => e.sets[0].weight)).toEqual([60, 55])
   })
 })
 

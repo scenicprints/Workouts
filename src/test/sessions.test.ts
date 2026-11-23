@@ -144,4 +144,35 @@ describe('session lifecycle', () => {
     await sessions.jumpPlanTo(await plan(), 99)
     expect((await sessions.nextPlanWorkout())?.complete).toBe(true)
   })
+
+  it('drops one set on deload weeks when the plan asks for it', async () => {
+    const routine = await makeRoutine()
+    const planId = await database.plans.add({ name: 'P', weeks: 1, deloadEvery: 1, deloadDropSet: true, active: true, cursor: 0, createdAt: 0, days: [{ label: 'Mon', routineId: routine.id! }] })
+    const id = await sessions.startRoutineSession(routine, { plan: (await database.plans.get(planId))!, unit: 'kg' })
+    const s = (await database.sessions.get(id))!
+    expect(s.entries[0].sets).toHaveLength(2)
+    expect(s.entries[0].sets[0].targetWeight).toBe(55) // 60 x 0.9 = 54 -> 55 on 2.5 kg plates
+  })
+
+  it('suggests a starting weight from another routine when the weight is 0', async () => {
+    const routine = await makeRoutine()
+    const squat = routine.items[0].exerciseId
+    await database.sessions.add({ name: 'Free', startedAt: 1, finishedAt: 2, entries: [{ exerciseId: squat, restSec: 90, increment: 2.5, sets: [{ reps: 5, weight: 80, done: true, targetReps: 5 }] }] })
+    await database.routines.update(routine.id!, { items: [{ ...routine.items[0], weight: 0 }] })
+    const id = await sessions.startRoutineSession((await database.routines.get(routine.id!))!, { unit: 'kg' })
+    expect((await database.sessions.get(id))!.entries[0].sets[0].targetWeight).toBe(80)
+  })
+
+  it('drops 10% after two missed sessions in a row', async () => {
+    const routine = await makeRoutine()
+    for (let i = 0; i < 2; i++) {
+      const id = await sessions.startRoutineSession(routine, { unit: 'kg' })
+      const s = (await database.sessions.get(id))!
+      s.entries[0].sets = s.entries[0].sets.map((x, j) => ({ ...x, done: true, reps: j === 2 ? 3 : 5 }))
+      await database.sessions.update(id, { entries: s.entries })
+      await sessions.finishSession(id)
+    }
+    const next = await sessions.startRoutineSession(routine, { unit: 'kg' })
+    expect((await database.sessions.get(next))!.entries[0].sets[0].targetWeight).toBe(55)
+  })
 })

@@ -1,5 +1,5 @@
 import { db, type Plan, type Routine, type Session, type SessionEntry, type SetEntry, type Unit } from '../db'
-import { latestEntryFor, nextTarget, planPosition } from './progression'
+import { hasRepRange, nextTarget, planPosition, recentEntriesFor, suggestStartingWeight } from './progression'
 
 /** In-progress sessions store finishedAt = 0 so Dexie can index them. */
 export const IN_PROGRESS = 0
@@ -25,28 +25,37 @@ export interface StartOptions {
 
 /**
  * Start a session from a routine. Targets come from the last time this routine was done:
- * hit every set last time and the weight goes up by the increment, otherwise it repeats.
+ * hit every set last time and the weight goes up by the increment, otherwise it repeats
+ * (and drops 10% after two misses in a row). Exercises with no starting weight get a
+ * suggestion from anything logged for them before.
  */
 export async function startRoutineSession(routine: Routine, options: StartOptions = {}): Promise<number> {
   const existing = await activeSession()
   if (existing?.id) return existing.id
-  const history = await db.sessions.where('routineId').equals(routine.id!).toArray()
+  const finished = await db.sessions.where('finishedAt').above(IN_PROGRESS).toArray()
+  const history = finished.filter((s) => s.routineId === routine.id)
   let planFields: Partial<Session> = {}
   let isDeload = false
+  let dropSet = false
   if (options.plan?.id) {
     const pos = planPosition(options.plan, options.plan.cursor)
     isDeload = pos.isDeload
+    dropSet = isDeload && !!options.plan.deloadDropSet
     planFields = { planId: options.plan.id, planWeek: pos.week, planDay: pos.day }
   }
+  const unit = options.unit ?? 'kg'
   const entries: SessionEntry[] = routine.items.map((item) => {
-    const previous = latestEntryFor(history, item.exerciseId, routine.id)
-    const target = nextTarget(item, previous, { isDeload, unit: options.unit })
+    const [previous, earlier] = recentEntriesFor(history, item.exerciseId, routine.id, 2)
+    const firstReps = hasRepRange(item) ? (item.minReps as number) : item.reps
+    const suggestedWeight = !previous && item.weight <= 0 ? suggestStartingWeight(finished, item.exerciseId, firstReps, unit) : undefined
+    const target = nextTarget(item, previous, { isDeload, unit, earlier, suggestedWeight })
+    const sets = dropSet ? Math.max(1, item.sets - 1) : item.sets
     return {
       exerciseId: item.exerciseId,
       restSec: item.restSec,
       increment: item.increment,
       group: item.group,
-      sets: blankSets(item.sets, target.weight, target.reps),
+      sets: blankSets(sets, target.weight, target.reps),
     }
   })
   return (await db.sessions.add({

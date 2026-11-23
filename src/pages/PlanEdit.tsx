@@ -44,7 +44,7 @@ function PlanEditor({ initial }: { initial: Plan }) {
         for (const o of others) await db.plans.update(o.id!, { active: false })
       }
       if (plan.id) {
-        await db.plans.update(plan.id, { name, weeks: plan.weeks, days: plan.days, deloadEvery: plan.deloadEvery, active: plan.active, notes: plan.notes })
+        await db.plans.update(plan.id, { name, weeks: plan.weeks, days: plan.days, deloadEvery: plan.deloadEvery, deloadDropSet: !!plan.deloadDropSet, active: plan.active, notes: plan.notes })
       } else {
         savedId = (await db.plans.add({ ...plan, name })) as number
       }
@@ -75,6 +75,10 @@ function PlanEditor({ initial }: { initial: Plan }) {
         <NumberField label="Weeks" value={plan.weeks} onChange={(weeks) => setPlan({ ...plan, weeks: Math.max(1, weeks) })} min={1} compact integer />
         <NumberField label="Deload every N weeks (0 = never)" value={plan.deloadEvery} onChange={(deloadEvery) => setPlan({ ...plan, deloadEvery })} min={0} compact integer />
       </div>
+      <label className="check">
+        <input type="checkbox" checked={!!plan.deloadDropSet} onChange={(e) => setPlan({ ...plan, deloadDropSet: e.target.checked })} disabled={plan.deloadEvery <= 0} />
+        <span>Deload weeks also drop one set from every exercise</span>
+      </label>
       <label className="check">
         <input type="checkbox" checked={plan.active} onChange={(e) => setPlan({ ...plan, active: e.target.checked })} />
         <span>Active plan (shown on Home; only one plan can be active)</span>

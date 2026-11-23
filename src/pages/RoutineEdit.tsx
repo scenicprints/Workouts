@@ -126,7 +126,8 @@ function RoutineEditor({ initial }: { initial: Routine }) {
             ) : null}
             <div className="item-row__fields">
               <NumberField label="Sets" value={item.sets} onChange={(sets) => patchItem(i, { sets: Math.max(1, sets) })} min={1} compact integer />
-              <NumberField label="Reps" value={item.reps} onChange={(reps) => patchItem(i, { reps: Math.max(1, reps) })} min={1} compact integer />
+              <NumberField label={item.minReps ? 'Top reps' : 'Reps'} value={item.reps} onChange={(reps) => patchItem(i, { reps: Math.max(1, reps), minReps: item.minReps && item.minReps < Math.max(1, reps) ? item.minReps : undefined })} min={1} compact integer />
+              <NumberField label="Min reps" value={item.minReps ?? 0} onChange={(minReps) => patchItem(i, { minReps: minReps > 0 && minReps < item.reps ? minReps : undefined })} min={0} compact integer />
               <NumberField label="Rest" suffix="s" value={item.restSec} onChange={(restSec) => patchItem(i, { restSec })} step={15} compact integer />
               <NumberField label={`Start (${unit})`} value={item.weight} onChange={(weight) => patchItem(i, { weight })} step={step} compact />
               <NumberField label={`+ per win (${unit})`} value={item.increment} onChange={(increment) => patchItem(i, { increment })} step={unit === 'kg' ? 1.25 : 2.5} compact />
@@ -139,7 +140,7 @@ function RoutineEditor({ initial }: { initial: Routine }) {
         + Add exercise
       </button>
       <p className="muted small">
-        Progression: when you hit the target reps on every set, the next time this routine runs the weight goes up by the “+ per win” amount. Miss, and it repeats.
+        Progression: hit the target reps on every set and the next time this routine runs the weight goes up by the “+ per win” amount. Miss, and it repeats; miss twice at the same weight and it drops 10%. Set “Min reps” for a rep range: reps climb from there to the top one at a time, then the weight goes up and reps start over. A start weight of 0 gets a suggestion from anything you have logged for that exercise.
       </p>
       {routine.id ? (
         <button type="button" className="btn btn--ghost btn--danger btn--block" onClick={remove}>

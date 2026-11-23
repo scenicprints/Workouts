@@ -36,57 +36,115 @@ export function workingWeight(sets: SetEntry[]): number | null {
 export interface Target {
   weight: number
   reps: number
-  reason: 'start' | 'repeat' | 'increase' | 'deload'
+  reason: 'start' | 'suggested' | 'repeat' | 'increase' | 'reps' | 'reset' | 'deload'
+}
+
+/** The rep target the last session was working to (the highest target among its work sets). */
+export function targetRepsOf(entry: SessionEntry | undefined): number | undefined {
+  if (!entry) return undefined
+  const targets = entry.sets.filter((s) => s.kind !== 'warmup' && s.targetReps !== undefined).map((s) => s.targetReps as number)
+  return targets.length ? Math.max(...targets) : undefined
+}
+
+/** True when the item uses a rep range (double progression) rather than a fixed rep target. */
+export function hasRepRange(item: Pick<RoutineItem, 'reps' | 'minReps'>): boolean {
+  return item.minReps !== undefined && item.minReps > 0 && item.minReps < item.reps
+}
+
+export interface NextTargetOptions {
+  isDeload?: boolean
+  unit?: Unit
+  /** The entry before `previous`, used to spot two misses in a row. */
+  earlier?: SessionEntry
+  /** Used when the routine has no starting weight (0) and there is no history yet. */
+  suggestedWeight?: number
 }
 
 /**
- * Decide the next target for a routine item given the most recent entry for that exercise.
- * - No history: use the routine's starting weight.
- * - Hit every set: add the increment.
- * - Missed: repeat the same weight.
+ * Decide the next target for a routine item given the most recent entries for that exercise.
+ * - No history: the routine's starting weight, or a suggestion when that is 0.
+ * - Hit every set: add the increment. With a rep range, reps climb first and the weight goes up
+ *   only once every set hits the top of the range; reps then drop back to the bottom.
+ * - Missed: repeat the same weight and reps.
+ * - Missed twice in a row at the same weight: drop 10% instead of repeating a third time.
  * - Deload week: 90% of what it would otherwise be, rounded to a plate.
  */
-export function nextTarget(
-  item: RoutineItem,
-  previous: SessionEntry | undefined,
-  options: { isDeload?: boolean; unit?: Unit } = {},
-): Target {
+export function nextTarget(item: RoutineItem, previous: SessionEntry | undefined, options: NextTargetOptions = {}): Target {
   const unit = options.unit ?? 'kg'
+  const ranged = hasRepRange(item)
+  const bottom = ranged ? (item.minReps as number) : item.reps
   let weight = item.weight
+  let reps = bottom
   let reason: Target['reason'] = 'start'
-  if (previous) {
-    const last = workingWeight(previous.sets)
-    if (last !== null) {
-      if (hitAllTargets(previous.sets)) {
+  const last = previous ? workingWeight(previous.sets) : null
+  if (previous && last !== null) {
+    const lastReps = Math.min(Math.max(targetRepsOf(previous) ?? bottom, bottom), item.reps)
+    if (hitAllTargets(previous.sets)) {
+      if (ranged && lastReps < item.reps) {
+        weight = last
+        reps = lastReps + 1
+        reason = 'reps'
+      } else {
         weight = last + (previous.increment || item.increment)
         reason = 'increase'
-      } else {
-        weight = last
-        reason = 'repeat'
+      }
+    } else {
+      weight = last
+      reps = lastReps
+      reason = 'repeat'
+      const before = options.earlier
+      if (before && !hitAllTargets(before.sets) && workingWeight(before.sets) === last && (targetRepsOf(before) ?? bottom) === lastReps) {
+        weight = roundToPlate(last * 0.9, unit)
+        reps = bottom
+        reason = 'reset'
       }
     }
+  } else if (weight <= 0 && options.suggestedWeight) {
+    weight = options.suggestedWeight
+    reason = 'suggested'
   }
   if (options.isDeload) {
     weight = roundToPlate(weight * 0.9, unit)
     reason = 'deload'
   }
-  return { weight, reps: item.reps, reason }
+  return { weight, reps, reason }
 }
 
-/** Find the latest finished session entry for an exercise, optionally scoped to a routine. */
-export function latestEntryFor(
-  sessions: Session[],
-  exerciseId: number,
-  routineId?: number,
-): SessionEntry | undefined {
+/** The most recent finished entries for an exercise, newest first, optionally scoped to a routine. */
+export function recentEntriesFor(sessions: Session[], exerciseId: number, routineId?: number, count = 2): SessionEntry[] {
   const finished = sessions
     .filter((s) => s.finishedAt && (routineId === undefined || s.routineId === routineId))
     .sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))
+  const out: SessionEntry[] = []
   for (const s of finished) {
     const entry = s.entries.find((e) => e.exerciseId === exerciseId && e.sets.some((x) => x.done))
-    if (entry) return entry
+    if (entry) out.push(entry)
+    if (out.length >= count) break
   }
-  return undefined
+  return out
+}
+
+/** Find the latest finished session entry for an exercise, optionally scoped to a routine. */
+export function latestEntryFor(sessions: Session[], exerciseId: number, routineId?: number): SessionEntry | undefined {
+  return recentEntriesFor(sessions, exerciseId, routineId, 1)[0]
+}
+
+/**
+ * A starting weight for an exercise the routine leaves at 0, from anything logged for it before
+ * (any routine). Same rep target as last time: reuse that weight. Otherwise 90% of the weight the
+ * best recent set predicts for the target reps, rounded to a plate. Undefined with no history.
+ */
+export function suggestStartingWeight(sessions: Session[], exerciseId: number, reps: number, unit: Unit): number | undefined {
+  const [latest] = recentEntriesFor(sessions, exerciseId, undefined, 1)
+  if (!latest) return undefined
+  const done = latest.sets.filter((s) => s.done && s.kind !== 'warmup' && s.weight > 0)
+  if (done.length === 0) return undefined
+  const heaviest = done.reduce((a, b) => (b.weight > a.weight ? b : a))
+  if ((targetRepsOf(latest) ?? heaviest.reps) === reps) return heaviest.weight
+  const best = Math.max(...done.map((s) => estimate1RM(s.weight, s.reps)))
+  const atReps = reps <= 1 ? best : best / (1 + reps / 30)
+  const suggested = roundToPlate(atReps * 0.9, unit)
+  return suggested > 0 ? suggested : undefined
 }
 
 export interface PlanPosition {

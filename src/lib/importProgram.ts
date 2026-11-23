@@ -11,6 +11,8 @@ export interface ProgramFile {
   weeks: number
   /** Every Nth week is a deload at 90%. 0 or omitted = none. */
   deloadEvery?: number
+  /** On deload weeks, also drop one set from every exercise. */
+  deloadDropSet?: boolean
   unit?: 'kg' | 'lb'
   days: { label: string; routine: string | null }[]
   routines: {
@@ -19,7 +21,10 @@ export interface ProgramFile {
     exercises: {
       exercise: string
       sets: number
+      /** Target reps, or the top of the rep range when minReps is given. */
       reps: number
+      /** Bottom of a rep range: reps climb from here to `reps` before the weight goes up. */
+      minReps?: number
       /** Starting working weight in the file's unit. 0 = set on first session. */
       weight?: number
       /** Added after a session where every set hits the target reps. */
@@ -67,6 +72,7 @@ export function validateProgram(input: unknown): { ok: true; program: ProgramFil
         if (!e.exercise) errors.push(`Routine "${r.name}", exercise ${ei + 1} needs an "exercise" name.`)
         if (!Number.isInteger(e.sets) || e.sets < 1) errors.push(`Routine "${r.name}", ${e.exercise}: "sets" must be a whole number ≥ 1.`)
         if (!Number.isInteger(e.reps) || e.reps < 1) errors.push(`Routine "${r.name}", ${e.exercise}: "reps" must be a whole number ≥ 1.`)
+        if (e.minReps !== undefined && (!Number.isInteger(e.minReps) || e.minReps < 1 || e.minReps >= e.reps)) errors.push(`Routine "${r.name}", ${e.exercise}: "minReps" must be a whole number from 1 up to one below "reps".`)
       })
   })
   return errors.length ? { ok: false, errors } : { ok: true, program: p as ProgramFile }
@@ -112,7 +118,7 @@ export async function importProgram(program: ProgramFile, options: { unit: 'kg' 
         group = groups.get(e.superset) ?? newGroupId()
         groups.set(e.superset, group)
       }
-      items.push({ exerciseId: ex.id!, sets: e.sets, reps: e.reps, restSec: e.restSec ?? 90, weight: convert(e.weight, 0), increment: convert(e.increment, ex.bodyweight ? 0 : defaultIncrement), group })
+      items.push({ exerciseId: ex.id!, sets: e.sets, reps: e.reps, minReps: e.minReps, restSec: e.restSec ?? 90, weight: convert(e.weight, 0), increment: convert(e.increment, ex.bodyweight ? 0 : defaultIncrement), group })
     }
     for (const [label, g] of groups) {
       if (items.filter((i) => i.group === g).length < 2) {
@@ -127,6 +133,6 @@ export async function importProgram(program: ProgramFile, options: { unit: 'kg' 
   const days: PlanDay[] = program.days.map((d) => ({ label: d.label, routineId: d.routine === null ? null : (routineIds.get(d.routine) ?? null) }))
   const others = await database.plans.filter((p) => p.active).toArray()
   for (const o of others) await database.plans.update(o.id!, { active: false })
-  const planId = (await database.plans.add({ name: program.name, notes: program.notes, weeks: program.weeks, days, deloadEvery: program.deloadEvery ?? 0, active: true, cursor: 0, createdAt: now })) as number
+  const planId = (await database.plans.add({ name: program.name, notes: program.notes, weeks: program.weeks, days, deloadEvery: program.deloadEvery ?? 0, deloadDropSet: !!program.deloadDropSet, active: true, cursor: 0, createdAt: now })) as number
   return { planId, routineIds: ids, createdExercises, warnings }
 }

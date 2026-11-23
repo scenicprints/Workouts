@@ -5,6 +5,7 @@ import { useUnit } from '../hooks/useSettings'
 import { planPosition } from '../lib/progression'
 import { jumpPlanTo, skipPlanDay, startRoutineSession } from '../lib/sessions'
 import { formatDate } from '../lib/format'
+import { canFlag, healthFlags } from '../lib/flags'
 
 export function PlanDetail() {
   const { id } = useParams()
@@ -14,6 +15,11 @@ export function PlanDetail() {
   const routines = useLiveQuery(() => db.routines.toArray(), []) ?? []
   const sessions = useLiveQuery(() => db.sessions.where('planId').equals(Number(id)).filter((s) => !!s.finishedAt).sortBy('finishedAt'), [id]) ?? []
   const active = useLiveQuery(() => db.sessions.where('finishedAt').equals(0).first(), [])
+  const health = useLiveQuery(async () => {
+    const now = Date.now()
+    const [daily, body] = await Promise.all([db.daily.where('date').above(now - 29 * 86400000).toArray(), db.body.where('date').above(now - 15 * 86400000).toArray()])
+    return { enough: canFlag(daily, body, now), flags: healthFlags(daily, body, unit, now) }
+  }, [unit])
 
   if (plan === undefined) return null
   if (!plan) return <div className="empty">Plan not found.</div>
@@ -55,7 +61,7 @@ export function PlanDetail() {
         <div>
           <h1>{plan.name}</h1>
           <span className="muted small">
-            {plan.weeks} weeks · {perWeek} days/week{plan.deloadEvery ? ` · deload every ${plan.deloadEvery} weeks` : ''}
+            {plan.weeks} weeks · {perWeek} days/week{plan.deloadEvery ? ` · deload every ${plan.deloadEvery} weeks${plan.deloadDropSet ? ', one set fewer' : ''}` : ''}
             {plan.startedAt ? ` · started ${formatDate(plan.startedAt)}` : ''}
           </span>
         </div>
@@ -112,6 +118,30 @@ export function PlanDetail() {
           </>
         )}
       </div>
+
+      {health?.enough ? (
+        <div className="card">
+          <div className="row row--between">
+            <div className="card__title">Health this week</div>
+            <span className="muted small">from Health Connect</span>
+          </div>
+          {health.flags.length === 0 ? (
+            <p className="muted small" style={{ margin: 0 }}>No flags. Resting heart rate, sleep and bodyweight are all in their lanes.</p>
+          ) : (
+            <ul className="list">
+              {health.flags.map((f) => (
+                <li key={f.key} className="list__item" style={{ display: 'block' }}>
+                  <div className="row row--between">
+                    <span className="list__title">{f.title}</span>
+                    <span className={`pill ${f.level === 'bad' ? 'pill--warn' : ''}`}>{f.level === 'bad' ? 'Act' : 'Watch'}</span>
+                  </div>
+                  <div className="muted small">{f.detail}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
 
       <div className="card">
         <div className="row row--between">
