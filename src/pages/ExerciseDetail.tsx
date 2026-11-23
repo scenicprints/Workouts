@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
 import { useUnit } from '../hooks/useSettings'
 import { estimate1RM } from '../lib/progression'
+import { learnStep, loggedWeights } from '../lib/loadStep'
 import { formatDate, formatWeight } from '../lib/format'
 import { LineChart } from '../components/Charts'
 
@@ -26,6 +27,7 @@ export function ExerciseDetail() {
     }
     return out
   }, [id])
+  const step = useLiveQuery(async () => learnStep(loggedWeights(await db.sessions.toArray(), Number(id)), unit), [id, unit])
 
   if (exercise === undefined) return null
   if (!exercise) return <div className="empty">Exercise not found.</div>
@@ -83,6 +85,10 @@ export function ExerciseDetail() {
         <div className="stat">
           <div className="stat__value">{points?.length ?? 0}</div>
           <div className="stat__label">sessions</div>
+        </div>
+        <div className="stat" title={step ? 'Learned from the weights you have logged. Targets land on this grid.' : 'Log two different weights and the app learns what this equipment moves in.'}>
+          <div className="stat__value">{step ? formatWeight(step.step, unit) : '—'}</div>
+          <div className="stat__label">weight step</div>
         </div>
       </div>
       {points && points.length >= 2 ? (

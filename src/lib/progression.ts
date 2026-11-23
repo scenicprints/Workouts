@@ -1,4 +1,5 @@
 import type { Plan, RoutineItem, Session, SessionEntry, SetEntry, Unit } from '../db'
+import { dropToGrid, repBuffer, snapToGrid, stepShare, type LoadStep } from './loadStep'
 
 /** Epley estimated one-rep max. Returns 0 for empty sets. */
 export function estimate1RM(weight: number, reps: number): number {
@@ -37,6 +38,10 @@ export interface Target {
   weight: number
   reps: number
   reason: 'start' | 'suggested' | 'repeat' | 'increase' | 'jump' | 'reps' | 'held' | 'reset' | 'deload'
+  /** The working weight last time, when there was one. */
+  from?: number
+  /** The step the equipment moves in, as used for this target. */
+  step?: number
 }
 
 /** Total reps across completed work sets. */
@@ -81,47 +86,60 @@ export interface NextTargetOptions {
    * between two misses, or four misses in a row, rather than two misses of any kind.
    */
   cutting?: boolean
+  /**
+   * What the equipment moves in, learned from logged weights (see `lib/loadStep.ts`). Every target
+   * lands on this grid. Without it, the increment stored on the previous entry or the routine item
+   * is taken as the step, anchored on the last weight.
+   */
+  step?: Pick<LoadStep, 'step' | 'anchor'>
 }
 
 /**
  * Decide the next target for a routine item given the most recent entries for that exercise.
- * - No history: the routine's starting weight, or a suggestion when that is 0.
- * - Hit every set: add the increment. With a rep range, reps climb first and the weight goes up
- *   only once every set hits the top of the range; reps then drop back to the bottom.
- * - Beat every set by two or more reps: the weight was too light, so add the increment twice.
+ * - No history: the routine's starting weight, or a suggestion when that is 0, snapped to the grid.
+ * - Hit every set: add one step. With a rep range, reps climb first and the weight goes up only
+ *   once every set hits the top of the range; reps then drop back to the bottom.
+ * - One step is a big jump at this load (over 10%): reps climb above the routine's top target first,
+ *   two extra reps over 10%, four over 20%, so a 10 lb stack on a light pulldown is not an 11% leap.
+ * - Beat every set by two or more reps: the weight was too light, so add two steps when two steps
+ *   stay within 10% of the load, else one.
  * - Readiness can hold the weight (and the reps) in place after a clean session.
  * - Missed: repeat the same weight and reps.
- * - Missed twice in a row at the same weight: drop 10% instead of repeating a third time. While
- *   cutting, only when reps fell between the two misses, or after four misses in a row.
- * - Deload week: 90% of what it would otherwise be, rounded to a plate.
+ * - Missed twice in a row at the same weight: drop to the grid weight nearest 90% instead of
+ *   repeating a third time. While cutting, only when reps fell between the two misses, or after
+ *   four misses in a row. When the equipment is too coarse to drop, reps go back to the bottom.
+ * - Deload week: the grid weight nearest 90% of what it would otherwise be.
  */
 export function nextTarget(item: RoutineItem, previous: SessionEntry | undefined, options: NextTargetOptions = {}): Target {
-  const unit = options.unit ?? 'kg'
-  const ranged = hasRepRange(item)
-  const bottom = ranged ? (item.minReps as number) : item.reps
   const allowIncrease = options.allowIncrease ?? true
   const allowRepClimb = options.allowRepClimb ?? true
+  const last = previous ? workingWeight(previous.sets) : null
+  const step = options.step?.step ?? (previous ? previous.increment || item.increment : item.increment)
+  const anchor = options.step?.anchor ?? last ?? item.weight
+  const buffer = last !== null ? repBuffer(step, last) : 0
+  const ranged = hasRepRange(item) || buffer > 0
+  const bottom = hasRepRange(item) ? (item.minReps as number) : item.reps
+  const top = item.reps + buffer
   let weight = item.weight
   let reps = bottom
   let reason: Target['reason'] = 'start'
-  const last = previous ? workingWeight(previous.sets) : null
   if (previous && last !== null) {
-    const lastReps = Math.min(Math.max(targetRepsOf(previous) ?? bottom, bottom), item.reps)
-    const increment = previous.increment || item.increment
+    const lastReps = Math.min(Math.max(targetRepsOf(previous) ?? bottom, bottom), top)
     if (hitAllTargets(previous.sets)) {
-      if (!allowIncrease && (!ranged || lastReps >= item.reps || !allowRepClimb)) {
+      if (!allowIncrease && (!ranged || lastReps >= top || !allowRepClimb)) {
         weight = last
         reps = lastReps
         reason = 'held'
       } else if (overshot(previous.sets) && allowIncrease) {
-        weight = last + increment * 2
-        reason = 'jump'
-      } else if (ranged && lastReps < item.reps) {
+        const steps = stepShare(step * 2, last) <= 0.1 ? 2 : 1
+        weight = last + step * steps
+        reason = steps === 2 ? 'jump' : 'increase'
+      } else if (ranged && lastReps < top) {
         weight = last
         reps = lastReps + 1
         reason = 'reps'
       } else {
-        weight = last + increment
+        weight = last + step
         reason = 'increase'
       }
     } else {
@@ -138,20 +156,23 @@ export function nextTarget(item: RoutineItem, previous: SessionEntry | undefined
       const fell = older.length > 0 && sameTarget(older[0]) && totalReps(previous.sets) < totalReps(older[0].sets)
       const reset = options.cutting ? (misses >= 2 && fell) || misses >= 4 : misses >= 2
       if (reset) {
-        weight = roundToPlate(last * 0.9, unit)
+        weight = dropToGrid(last, 0.9, step, anchor)
         reps = bottom
         reason = 'reset'
       }
     }
   } else if (weight <= 0 && options.suggestedWeight) {
-    weight = options.suggestedWeight
+    weight = snapToGrid(options.suggestedWeight, step, anchor)
     reason = 'suggested'
   }
+  let from = last ?? undefined
   if (options.isDeload) {
-    weight = roundToPlate(weight * 0.9, unit)
+    from ??= weight
+    weight = dropToGrid(weight, 0.9, step, anchor)
     reason = 'deload'
   }
-  return { weight, reps, reason }
+  weight = Math.round(weight * 1000) / 1000
+  return { weight, reps, reason, from, step }
 }
 
 /** The most recent finished entries for an exercise, newest first, optionally scoped to a routine. */

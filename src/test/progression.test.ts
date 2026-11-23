@@ -38,13 +38,13 @@ describe('hitAllTargets / workingWeight', () => {
 
 describe('nextTarget', () => {
   it('starts at the routine weight with no history', () => {
-    expect(nextTarget(item, undefined)).toEqual({ weight: 60, reps: 5, reason: 'start' })
+    expect(nextTarget(item, undefined)).toMatchObject({ weight: 60, reps: 5, reason: 'start' })
   })
   it('adds the increment after a clean session', () => {
-    expect(nextTarget(item, entry([[5, 60], [5, 60], [5, 60]]))).toEqual({ weight: 62.5, reps: 5, reason: 'increase' })
+    expect(nextTarget(item, entry([[5, 60], [5, 60], [5, 60]]))).toMatchObject({ weight: 62.5, reps: 5, reason: 'increase' })
   })
   it('repeats after a miss', () => {
-    expect(nextTarget(item, entry([[5, 60], [5, 60], [3, 60]]))).toEqual({ weight: 60, reps: 5, reason: 'repeat' })
+    expect(nextTarget(item, entry([[5, 60], [5, 60], [3, 60]]))).toMatchObject({ weight: 60, reps: 5, reason: 'repeat' })
   })
   it('deloads to 90% rounded to a plate', () => {
     const t = nextTarget(item, entry([[5, 100], [5, 100], [5, 100]]), { isDeload: true, unit: 'kg' })
@@ -61,29 +61,29 @@ describe('nextTarget', () => {
 describe('nextTarget with a rep range (double progression)', () => {
   const ranged: RoutineItem = { ...item, reps: 12, minReps: 8 }
   it('starts at the bottom of the range', () => {
-    expect(nextTarget(ranged, undefined)).toEqual({ weight: 60, reps: 8, reason: 'start' })
+    expect(nextTarget(ranged, undefined)).toMatchObject({ weight: 60, reps: 8, reason: 'start' })
   })
   it('adds a rep, not weight, after a clean session below the top', () => {
-    expect(nextTarget(ranged, entry([[8, 60], [8, 60], [8, 60]], 8))).toEqual({ weight: 60, reps: 9, reason: 'reps' })
+    expect(nextTarget(ranged, entry([[8, 60], [8, 60], [8, 60]], 8))).toMatchObject({ weight: 60, reps: 9, reason: 'reps' })
   })
   it('adds weight and resets reps once every set hits the top', () => {
-    expect(nextTarget(ranged, entry([[12, 60], [12, 60], [12, 60]], 12))).toEqual({ weight: 62.5, reps: 8, reason: 'increase' })
+    expect(nextTarget(ranged, entry([[12, 60], [12, 60], [12, 60]], 12))).toMatchObject({ weight: 62.5, reps: 8, reason: 'increase' })
   })
   it('repeats the same reps after a miss', () => {
-    expect(nextTarget(ranged, entry([[10, 60], [10, 60], [9, 60]], 10))).toEqual({ weight: 60, reps: 10, reason: 'repeat' })
+    expect(nextTarget(ranged, entry([[10, 60], [10, 60], [9, 60]], 10))).toMatchObject({ weight: 60, reps: 10, reason: 'repeat' })
   })
   it('treats an old fixed-rep entry as the bottom of the range', () => {
-    expect(nextTarget(ranged, entry([[5, 60], [5, 60]], 5))).toEqual({ weight: 60, reps: 9, reason: 'reps' })
+    expect(nextTarget(ranged, entry([[5, 60], [5, 60]], 5))).toMatchObject({ weight: 60, reps: 9, reason: 'reps' })
   })
 })
 
 describe('nextTarget after two misses', () => {
   it('drops 10% instead of repeating a third time', () => {
     const miss = entry([[5, 100], [5, 100], [3, 100]])
-    expect(nextTarget(item, miss, { earlier: miss, unit: 'kg' })).toEqual({ weight: 90, reps: 5, reason: 'reset' })
+    expect(nextTarget(item, miss, { earlier: miss, unit: 'kg' })).toMatchObject({ weight: 90, reps: 5, reason: 'reset' })
   })
   it('only counts misses at the same weight', () => {
-    expect(nextTarget(item, entry([[5, 100], [3, 100]]), { earlier: entry([[5, 110], [3, 110]]), unit: 'kg' })).toEqual({ weight: 100, reps: 5, reason: 'repeat' })
+    expect(nextTarget(item, entry([[5, 100], [3, 100]]), { earlier: entry([[5, 110], [3, 110]]), unit: 'kg' })).toMatchObject({ weight: 100, reps: 5, reason: 'repeat' })
   })
   it('does not reset after a miss that followed a win', () => {
     expect(nextTarget(item, entry([[5, 100], [3, 100]]), { earlier: entry([[5, 97.5], [5, 97.5]]), unit: 'kg' }).reason).toBe('repeat')
@@ -93,19 +93,19 @@ describe('nextTarget after two misses', () => {
 describe('nextTarget under readiness rules', () => {
   const clean = entry([[5, 100], [5, 100], [5, 100]])
   it('holds the weight after a clean session when increases are off', () => {
-    expect(nextTarget(item, clean, { allowIncrease: false })).toEqual({ weight: 100, reps: 5, reason: 'held' })
+    expect(nextTarget(item, clean, { allowIncrease: false })).toMatchObject({ weight: 100, reps: 5, reason: 'held' })
   })
   it('still climbs reps in a range when only increases are off', () => {
     const ranged: RoutineItem = { ...item, reps: 12, minReps: 8 }
-    expect(nextTarget(ranged, entry([[8, 60], [8, 60]], 8), { allowIncrease: false })).toEqual({ weight: 60, reps: 9, reason: 'reps' })
-    expect(nextTarget(ranged, entry([[12, 60], [12, 60]], 12), { allowIncrease: false })).toEqual({ weight: 60, reps: 12, reason: 'held' })
+    expect(nextTarget(ranged, entry([[8, 60], [8, 60]], 8), { allowIncrease: false })).toMatchObject({ weight: 60, reps: 9, reason: 'reps' })
+    expect(nextTarget(ranged, entry([[12, 60], [12, 60]], 12), { allowIncrease: false })).toMatchObject({ weight: 60, reps: 12, reason: 'held' })
   })
   it('holds reps too when rep climbs are off', () => {
     const ranged: RoutineItem = { ...item, reps: 12, minReps: 8 }
-    expect(nextTarget(ranged, entry([[9, 60], [9, 60]], 9), { allowIncrease: false, allowRepClimb: false })).toEqual({ weight: 60, reps: 9, reason: 'held' })
+    expect(nextTarget(ranged, entry([[9, 60], [9, 60]], 9), { allowIncrease: false, allowRepClimb: false })).toMatchObject({ weight: 60, reps: 9, reason: 'held' })
   })
   it('jumps two increments when every set beat its target by two reps', () => {
-    expect(nextTarget(item, entry([[7, 100], [8, 100], [7, 100]]))).toEqual({ weight: 105, reps: 5, reason: 'jump' })
+    expect(nextTarget(item, entry([[7, 100], [8, 100], [7, 100]]))).toMatchObject({ weight: 105, reps: 5, reason: 'jump' })
     expect(nextTarget(item, entry([[7, 100], [6, 100]])).reason).toBe('increase')
   })
   it('does not jump when increases are off', () => {
@@ -116,10 +116,10 @@ describe('nextTarget under readiness rules', () => {
 describe('nextTarget while cutting', () => {
   const miss = (reps: number[]) => entry(reps.map((r) => [r, 100] as [number, number]))
   it('keeps repeating after two misses when reps held steady', () => {
-    expect(nextTarget(item, miss([5, 5, 3]), { history: [miss([5, 5, 3])], cutting: true, unit: 'kg' })).toEqual({ weight: 100, reps: 5, reason: 'repeat' })
+    expect(nextTarget(item, miss([5, 5, 3]), { history: [miss([5, 5, 3])], cutting: true, unit: 'kg' })).toMatchObject({ weight: 100, reps: 5, reason: 'repeat' })
   })
   it('resets after two misses when reps fell', () => {
-    expect(nextTarget(item, miss([5, 4, 2]), { history: [miss([5, 5, 3])], cutting: true, unit: 'kg' })).toEqual({ weight: 90, reps: 5, reason: 'reset' })
+    expect(nextTarget(item, miss([5, 4, 2]), { history: [miss([5, 5, 3])], cutting: true, unit: 'kg' })).toMatchObject({ weight: 90, reps: 5, reason: 'reset' })
   })
   it('resets after four misses whatever the reps did', () => {
     const h = miss([5, 5, 4])
@@ -138,10 +138,10 @@ describe('suggestStartingWeight', () => {
     { id: 1, name: 'Old', startedAt: 1, finishedAt: 100, routineId: 3, entries: [entry([[8, 100], [8, 100]], 8)] },
   ]
   it('uses the start weight when the routine has one', () => {
-    expect(nextTarget(item, undefined, { suggestedWeight: 80 })).toEqual({ weight: 60, reps: 5, reason: 'start' })
+    expect(nextTarget(item, undefined, { suggestedWeight: 80 })).toMatchObject({ weight: 60, reps: 5, reason: 'start' })
   })
   it('suggests when the routine weight is 0', () => {
-    expect(nextTarget({ ...item, weight: 0 }, undefined, { suggestedWeight: 80 })).toEqual({ weight: 80, reps: 5, reason: 'suggested' })
+    expect(nextTarget({ ...item, weight: 0 }, undefined, { suggestedWeight: 80 })).toMatchObject({ weight: 80, reps: 5, reason: 'suggested' })
   })
   it('reuses the last weight at the same rep target', () => {
     expect(suggestStartingWeight(sessions, 1, 8, 'lb')).toBe(100)
@@ -206,5 +206,48 @@ describe('weeklyStreak', () => {
   })
   it('is zero when this week is empty', () => {
     expect(weeklyStreak([now - 8 * day], now)).toBe(0)
+  })
+})
+
+describe('nextTarget on an equipment grid', () => {
+  const lbItem: RoutineItem = { exerciseId: 1, sets: 3, reps: 8, restSec: 90, weight: 0, increment: 5 }
+  const sets = (reps: number, weight: number, target = 8): SessionEntry => ({ exerciseId: 1, restSec: 90, increment: 5, sets: [1, 2, 3].map(() => ({ reps, weight, done: true, targetReps: target, targetWeight: weight })) })
+  const stack10 = { step: 10, anchor: 100 }
+
+  it('moves by the learned step, not the routine increment', () => {
+    expect(nextTarget(lbItem, sets(8, 100), { unit: 'lb', step: stack10 })).toMatchObject({ weight: 110, reps: 8, reason: 'increase', from: 100, step: 10 })
+  })
+  it('climbs reps before adding a step that is more than 10% of the load', () => {
+    expect(nextTarget(lbItem, sets(8, 80), { unit: 'lb', step: stack10 })).toMatchObject({ weight: 80, reps: 9, reason: 'reps' })
+    expect(nextTarget(lbItem, sets(9, 80, 9), { unit: 'lb', step: stack10 })).toMatchObject({ weight: 80, reps: 10, reason: 'reps' })
+    expect(nextTarget(lbItem, sets(10, 80, 10), { unit: 'lb', step: stack10 })).toMatchObject({ weight: 90, reps: 8, reason: 'increase' })
+  })
+  it('climbs four extra reps when a step is over 20% of the load', () => {
+    const light = { step: 5, anchor: 20 }
+    expect(nextTarget(lbItem, sets(11, 20, 11), { unit: 'lb', step: light })).toMatchObject({ weight: 20, reps: 12, reason: 'reps' })
+    expect(nextTarget(lbItem, sets(12, 20, 12), { unit: 'lb', step: light })).toMatchObject({ weight: 25, reps: 8, reason: 'increase' })
+  })
+  it('a miss during the rep climb repeats that rep target', () => {
+    const prev = sets(9, 80, 10)
+    expect(nextTarget(lbItem, prev, { unit: 'lb', step: stack10 })).toMatchObject({ weight: 80, reps: 10, reason: 'repeat' })
+  })
+  it('doubles the jump only while two steps stay within 10%', () => {
+    expect(nextTarget(lbItem, sets(11, 200), { unit: 'lb', step: { step: 5, anchor: 200 } })).toMatchObject({ weight: 210, reason: 'jump' })
+    expect(nextTarget(lbItem, sets(11, 100), { unit: 'lb', step: stack10 })).toMatchObject({ weight: 110, reason: 'increase' })
+  })
+  it('resets to the grid weight nearest 90%', () => {
+    const miss = sets(6, 90)
+    expect(nextTarget(lbItem, miss, { unit: 'lb', step: stack10, history: [miss] })).toMatchObject({ weight: 80, reps: 8, reason: 'reset' })
+  })
+  it('cannot reset a load the equipment is too coarse to drop, so reps come back down', () => {
+    const miss = sets(10, 15, 11)
+    expect(nextTarget(lbItem, miss, { unit: 'lb', step: { step: 5, anchor: 15 }, history: [miss] })).toMatchObject({ weight: 15, reps: 8, reason: 'reset' })
+  })
+  it('snaps a suggested start to the grid', () => {
+    expect(nextTarget(lbItem, undefined, { unit: 'lb', step: stack10, suggestedWeight: 87 })).toMatchObject({ weight: 90, reason: 'suggested' })
+  })
+  it('deloads to the grid weight nearest 90%', () => {
+    expect(nextTarget(lbItem, sets(8, 100), { unit: 'lb', step: stack10, isDeload: true })).toMatchObject({ weight: 100, reason: 'deload', from: 100 })
+    expect(nextTarget(lbItem, sets(8, 140), { unit: 'lb', step: stack10, isDeload: true })).toMatchObject({ weight: 140, reason: 'deload' })
   })
 })

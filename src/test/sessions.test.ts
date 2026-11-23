@@ -233,7 +233,7 @@ describe('readiness at session start', () => {
     expect(s.readiness?.earlyDeload).toBe(true)
     expect(s.entries[0].sets).toHaveLength(2)
     expect(s.entries[0].sets[0].targetWeight).toBe(55)
-    expect(s.entries[0].note).toBe('Deload at 90%: two red weeks')
+    expect(s.entries[0].note).toBe('Deload to 55 kg: two red weeks')
   })
 
   it('leaves everything alone when there is no data to read', async () => {

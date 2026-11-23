@@ -362,7 +362,8 @@ function labelSets(entry: SessionEntry, previous: SessionEntry | undefined) {
 function SetRowView({ p, si, label, prev, prefix }: { p: PanelProps; si: number; label: string; prev: SetEntry | undefined; prefix?: string }) {
   const set = p.entry.sets[si]
   const unit = p.unit
-  const step = unit === 'kg' ? 2.5 : 5
+  // Nudge by what this equipment moves in (learned from the log), not a generic plate.
+  const step = p.entry.increment || (unit === 'kg' ? 2.5 : 5)
   const nextUp = p.entry.sets.findIndex((s) => !s.done)
   const isWarm = set.kind === 'warmup'
   const isNext = si === nextUp

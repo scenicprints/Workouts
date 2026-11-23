@@ -130,7 +130,7 @@ function RoutineEditor({ initial }: { initial: Routine }) {
               <NumberField label="Min reps" value={item.minReps ?? 0} onChange={(minReps) => patchItem(i, { minReps: minReps > 0 && minReps < item.reps ? minReps : undefined })} min={0} compact integer />
               <NumberField label="Rest" suffix="s" value={item.restSec} onChange={(restSec) => patchItem(i, { restSec })} step={15} compact integer />
               <NumberField label={`Start (${unit})`} value={item.weight} onChange={(weight) => patchItem(i, { weight })} step={step} compact />
-              <NumberField label={`+ per win (${unit})`} value={item.increment} onChange={(increment) => patchItem(i, { increment })} step={unit === 'kg' ? 1.25 : 2.5} compact />
+              <NumberField label={`Step (${unit})`} value={item.increment} onChange={(increment) => patchItem(i, { increment })} step={unit === 'kg' ? 1.25 : 2.5} compact />
             </div>
           </div>
         )
