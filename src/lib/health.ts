@@ -7,8 +7,8 @@ import { db, getSetting, setSetting, type BodyEntry, type DailyEntry } from '../
  */
 interface HealthConnectPlugin {
   isAvailable(): Promise<{ available: boolean; status: 'available' | 'update_required' | 'unavailable' }>
-  hasPermissions(): Promise<{ granted: boolean; count: number }>
-  requestHealthPermissions(): Promise<{ granted: boolean; count: number }>
+  hasPermissions(): Promise<{ granted: boolean; count: number; missing?: string[] }>
+  requestHealthPermissions(): Promise<{ granted: boolean; count: number; missing?: string[] }>
   readBody(o: { since: number }): Promise<{ records: { type: 'weight' | 'fat' | 'lean'; time: number; value: number }[] }>
   readDaily(o: { since: number }): Promise<{ days: { date: number; steps?: number; sleepMin?: number; restingHr?: number; kcal?: number; protein?: number }[] }>
   readSessionVitals(o: { start: number; end: number }): Promise<{ hrAvg?: number; hrMax?: number; calories?: number }>
@@ -34,18 +34,35 @@ export const healthPrefs = {
   set: (p: HealthPrefs) => setSetting('health.prefs', p),
 }
 
-export async function healthStatus(): Promise<{ native: boolean; available: boolean; status: string; granted: boolean }> {
-  if (!isNativeApp()) return { native: false, available: false, status: 'web', granted: false }
-  const a = await HealthConnect.isAvailable()
-  if (!a.available) return { native: true, available: false, status: a.status, granted: false }
-  const p = await HealthConnect.hasPermissions()
-  return { native: true, available: true, status: a.status, granted: p.granted }
+export interface HealthStatus {
+  native: boolean
+  available: boolean
+  status: string
+  /** Every permission the app asks for is granted. */
+  granted: boolean
+  /** Plain names of the permissions not granted ("nutrition"), so the UI can ask for just those. */
+  missing: string[]
 }
 
+export async function healthStatus(): Promise<HealthStatus> {
+  if (!isNativeApp()) return { native: false, available: false, status: 'web', granted: false, missing: [] }
+  const a = await HealthConnect.isAvailable()
+  if (!a.available) return { native: true, available: false, status: a.status, granted: false, missing: [] }
+  const p = await HealthConnect.hasPermissions()
+  return { native: true, available: true, status: a.status, granted: p.granted, missing: p.missing ?? [] }
+}
+
+/**
+ * Ask Health Connect for every permission. Connected means the core reads were granted: a newer
+ * permission the user declined (nutrition, say) leaves the rest of the sync working and is reported
+ * through `healthStatus().missing`.
+ */
 export async function connectHealth(): Promise<boolean> {
   const r = await HealthConnect.requestHealthPermissions()
-  if (r.granted) await healthPrefs.set({ ...(await healthPrefs.get()), enabled: true })
-  return r.granted
+  const missing = r.missing ?? (r.granted ? [] : ['some permissions'])
+  const core = r.granted || (missing.length > 0 && missing.length <= 2 && missing.every((m) => m === 'nutrition' || m === 'writing workouts'))
+  if (core) await healthPrefs.set({ ...(await healthPrefs.get()), enabled: true })
+  return core
 }
 
 function dayStart(ts: number): number {

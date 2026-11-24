@@ -6,6 +6,7 @@ import { planPosition } from '../lib/progression'
 import { currentReadiness, jumpPlanTo, skipPlanDay, startRoutineSession } from '../lib/sessions'
 import { formatDate } from '../lib/format'
 import { canFlag, healthFlags } from '../lib/flags'
+import { bodyTrend } from '../lib/readiness'
 import { ReadinessCard } from '../components/Readiness'
 
 export function PlanDetail() {
@@ -19,7 +20,11 @@ export function PlanDetail() {
   const health = useLiveQuery(async () => {
     const now = Date.now()
     const [daily, body] = await Promise.all([db.daily.where('date').above(now - 29 * 86400000).toArray(), db.body.where('date').above(now - 15 * 86400000).toArray()])
-    return { enough: canFlag(daily, body, now), flags: healthFlags(daily, body, unit, now) }
+    const week = daily.filter((d) => d.date > now - 7 * 86400000)
+    const fed = week.filter((d) => d.kcal !== undefined || d.protein !== undefined)
+    const avg = (v: number[]) => (v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : undefined)
+    const food = fed.length ? { days: fed.length, kcal: avg(fed.map((d) => d.kcal).filter((v): v is number => v !== undefined)), protein: avg(fed.map((d) => d.protein).filter((v): v is number => v !== undefined)) } : null
+    return { enough: canFlag(daily, body, now), flags: healthFlags(daily, body, unit, now), food, floor: bodyTrend(body, daily, unit, now).proteinFloor }
   }, [unit])
   const readiness = useLiveQuery(() => currentReadiness(unit), [unit])
 
@@ -123,12 +128,17 @@ export function PlanDetail() {
 
       {readiness ? <ReadinessCard readiness={{ ...readiness, earlyDeload: readiness.rules.deload && !pos.isDeload }} title="Readiness for the next session" /> : null}
 
-      {health?.enough ? (
+      {health?.enough || health?.food ? (
         <div className="card">
           <div className="row row--between">
             <div className="card__title">Health this week</div>
             <span className="muted small">from Health Connect</span>
           </div>
+          <p className="small" style={{ margin: '0 0 8px' }}>
+            {health.food
+              ? `Food: ${health.food.kcal !== undefined ? `${health.food.kcal.toLocaleString()} kcal` : 'no calories'}${health.food.protein !== undefined ? `, ${health.food.protein} g protein` : ''} a day over ${health.food.days} logged day${health.food.days === 1 ? '' : 's'}${health.floor !== undefined && health.food.protein !== undefined ? (health.food.protein < health.floor ? `. Under your ${Math.round(health.floor)} g floor.` : `. Floor ${Math.round(health.floor)} g.`) : '.'} From BodyComp.`
+              : 'No food logged this week. BodyComp hands day totals to Health Connect; make sure both apps have the nutrition permission.'}
+          </p>
           {health.flags.length === 0 ? (
             <p className="muted small" style={{ margin: 0 }}>No flags. Resting heart rate, sleep and bodyweight are all in their lanes.</p>
           ) : (
