@@ -410,6 +410,20 @@ export async function importAll(bundle: ExportBundle, database: WorkoutsDB = db)
   })
 }
 
+/**
+ * Back to the beginning: delete every workout session (finished or in progress) and put every plan
+ * back on week 1. Exercises, routines, plans, equipment, body and daily entries and settings stay.
+ * Learned steps go with the sessions, since they came from them; equipment you set up does not.
+ */
+export async function resetHistory(database: WorkoutsDB = db): Promise<number> {
+  return database.transaction('rw', database.sessions, database.plans, async () => {
+    const count = await database.sessions.count()
+    await database.sessions.clear()
+    await database.plans.toCollection().modify({ cursor: 0, startedAt: undefined })
+    return count
+  })
+}
+
 export async function wipeAll(database: WorkoutsDB = db): Promise<void> {
   await database.transaction('rw', ALL_TABLES(database), async () => {
     await Promise.all(ALL_TABLES(database).map((t) => t.clear()))
