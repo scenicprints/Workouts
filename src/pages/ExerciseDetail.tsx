@@ -4,8 +4,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
 import { useUnit } from '../hooks/useSettings'
 import { estimate1RM } from '../lib/progression'
+import { cleanLimits, learnStep, loggedWeights } from '../lib/loadStep'
 import { formatDate, formatWeight } from '../lib/format'
 import { LineChart } from '../components/Charts'
+import { EquipmentSheet } from '../components/EquipmentSheet'
 
 export function ExerciseDetail() {
   const { id } = useParams()
@@ -14,6 +16,7 @@ export function ExerciseDetail() {
   const exercise = useLiveQuery(() => db.exercises.get(Number(id)), [id])
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState('')
+  const [equip, setEquip] = useState(false)
   const points = useLiveQuery(async () => {
     const sessions = await db.sessions.filter((s) => !!s.finishedAt).sortBy('finishedAt')
     const out: { ts: number; best: number; e1rm: number; sets: number; sessionId: number }[] = []
@@ -26,10 +29,16 @@ export function ExerciseDetail() {
     }
     return out
   }, [id])
+  const step = useLiveQuery(async () => learnStep(loggedWeights(await db.sessions.toArray(), Number(id)), unit), [id, unit])
+  const gear = useLiveQuery(async () => {
+    const ex = await db.exercises.get(Number(id))
+    return ex?.gearId ? ((await db.gear.get(ex.gearId)) ?? null) : null
+  }, [id])
 
   if (exercise === undefined) return null
   if (!exercise) return <div className="empty">Exercise not found.</div>
 
+  const limits = cleanLimits(gear ?? undefined)
   const pr = points?.reduce((b, p) => Math.max(b, p.best), 0) ?? 0
   const bestE1rm = points?.reduce((b, p) => Math.max(b, p.e1rm), 0) ?? 0
 
@@ -84,7 +93,17 @@ export function ExerciseDetail() {
           <div className="stat__value">{points?.length ?? 0}</div>
           <div className="stat__label">sessions</div>
         </div>
+        <button type="button" className="stat" style={{ cursor: 'pointer', textAlign: 'inherit', font: 'inherit', color: 'inherit' }} onClick={() => setEquip(true)} title={gear ? `On ${gear.name}. Tap to change the equipment.` : step ? 'Learned from the weights you have logged. Tap to link this exercise to a piece of equipment.' : 'Log two different weights and the app learns what this equipment moves in, or tap to link it to a piece of equipment.'}>
+          <div className="stat__value">{limits.step ? formatWeight(limits.step, unit) : step ? formatWeight(step.step, unit) : '—'}</div>
+          <div className="stat__label">{gear ? gear.name : 'step (learned)'}</div>
+        </button>
       </div>
+      {gear ? (
+        <p className="muted small" style={{ margin: 0 }}>
+          {gear.name}: {limits.step ? `${formatWeight(limits.step, unit)} steps` : 'step learned from the log'}, {limits.min !== undefined ? `from ${formatWeight(limits.min, unit)}` : 'no minimum'}, {limits.max !== undefined ? `up to ${formatWeight(limits.max, unit)}` : 'no maximum'}.
+        </p>
+      ) : null}
+      {equip ? <EquipmentSheet exercise={exercise} unit={unit} onClose={() => setEquip(false)} /> : null}
       {points && points.length >= 2 ? (
         <div className="card">
           <div className="card__title">Estimated 1RM over time</div>

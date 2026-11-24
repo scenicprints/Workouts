@@ -2,6 +2,7 @@ import { db, type Plan, type Routine, type Session, type SessionEntry, type Sess
 import { hasRepRange, nextTarget, planPosition, recentEntriesFor, suggestStartingWeight, type Target } from './progression'
 import { assessReadiness, canAssess, type Readiness } from './readiness'
 import { formatWeight } from './format'
+import { loggedWeights, resolveStep } from './loadStep'
 
 /** In-progress sessions store finishedAt = 0 so Dexie can index them. */
 export const IN_PROGRESS = 0
@@ -44,27 +45,31 @@ export async function currentReadiness(unit: Unit, now = Date.now()): Promise<Re
 }
 
 /** The one-line explanation of a target that sits under the exercise name during the session. */
-export function describeTarget(target: Target, previous: SessionEntry | undefined, unit: Unit, readiness?: Readiness | null): string {
-  const inc = (n: number) => `+${formatWeight(n, unit)}`
+export function describeTarget(target: Target, unit: Unit, readiness?: Readiness | null): string {
+  const from = target.from ?? 0
+  const delta = Math.round((target.weight - from) * 1000) / 1000
+  const inc = `+${formatWeight(delta, unit)}`
   switch (target.reason) {
     case 'start':
       return target.weight > 0 ? 'Starting weight' : 'Pick a weight: 3 reps in reserve'
     case 'suggested':
       return 'Suggested from your history'
     case 'increase':
-      return `${inc(previous?.increment || 0)} after a clean session`
+      return delta > 0 ? `${inc} after a clean session` : 'Clean session, nothing to load'
     case 'jump':
-      return `${inc((previous?.increment || 0) * 2)}: last time was too easy`
+      return `${inc}: last time was too easy`
     case 'reps':
-      return `Reps ${target.reps - 1} → ${target.reps}, same weight`
+      return target.capped ? `Maxed out at ${formatWeight(target.weight, unit)}: reps ${target.reps - 1} → ${target.reps}` : `Reps ${target.reps - 1} → ${target.reps}, same weight`
     case 'held':
       return `Held: ${readiness?.holdReason ?? 'recovery'}`
     case 'repeat':
       return 'Same again: missed last time'
     case 'reset':
-      return '−10% after stalling, build back up'
-    case 'deload':
-      return readiness?.rules.deload ? 'Deload at 90%: two red weeks' : 'Deload at 90%'
+      return target.weight < from ? `Back to ${formatWeight(target.weight, unit)} after stalling, build back up` : `Reps back to ${target.reps} after stalling`
+    case 'deload': {
+      const why = readiness?.rules.deload ? ': two red weeks' : ''
+      return target.weight < from ? `Deload to ${formatWeight(target.weight, unit)}${why}` : `Deload${why}: same weight, stop 3 reps shy`
+    }
   }
 }
 
@@ -84,6 +89,7 @@ export async function startRoutineSession(routine: Routine, options: StartOption
   const readiness = options.readiness === false ? null : (options.readiness ?? (await currentReadiness(unit)))
   const rules = readiness?.rules
   const exercises = new Map((await db.exercises.toArray()).map((e) => [e.id!, e]))
+  const gearById = new Map((await db.gear.toArray()).map((g) => [g.id!, g]))
   let planFields: Partial<Session> = {}
   let isDeload = false
   let dropSet = false
@@ -100,7 +106,13 @@ export async function startRoutineSession(routine: Routine, options: StartOption
     const [previous, ...older] = recentEntriesFor(history, item.exerciseId, routine.id, 5)
     const firstReps = hasRepRange(item) ? (item.minReps as number) : item.reps
     const suggestedWeight = !previous && item.weight <= 0 ? suggestStartingWeight(finished, item.exerciseId, firstReps, unit) : undefined
-    const compound = !!exercises.get(item.exerciseId)?.compound
+    const exercise = exercises.get(item.exerciseId)
+    const compound = !!exercise?.compound
+    // What this equipment moves in: the gear's own numbers, else learned from every weight logged on
+    // it (pooled across the exercises that share the gear), else the routine's seed.
+    const gear = exercise?.gearId ? gearById.get(exercise.gearId) : undefined
+    const pooled = gear ? [item.exerciseId, ...[...exercises.values()].filter((e) => e.gearId === gear.id && e.id !== item.exerciseId).map((e) => e.id!)] : item.exerciseId
+    const step = resolveStep(loggedWeights(finished, pooled), item.increment, exercise, unit, gear)
     const target = nextTarget(item, previous, {
       isDeload,
       unit,
@@ -109,14 +121,15 @@ export async function startRoutineSession(routine: Routine, options: StartOption
       allowIncrease: rules ? (compound ? rules.increaseCompounds : rules.increaseAccessories) : true,
       allowRepClimb: rules ? rules.climbReps : true,
       cutting: rules?.cutting ?? false,
+      step,
     })
     const sets = dropSet ? Math.max(1, item.sets - 1) : item.sets
     return {
       exerciseId: item.exerciseId,
       restSec: item.restSec,
-      increment: item.increment,
+      increment: step.step,
       group: item.group,
-      note: describeTarget(target, previous, unit, readiness),
+      note: describeTarget(target, unit, readiness),
       sets: blankSets(sets, target.weight, target.reps),
     }
   })
