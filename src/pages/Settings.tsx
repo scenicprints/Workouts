@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { db, exportAll, importAll, setSetting, wipeAll, type ExportBundle, type Unit } from '../db'
+import { db, exportAll, importAll, resetHistory, setSetting, wipeAll, type ExportBundle, type Unit } from '../db'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useDefaultRest, useRestTimerEnabled, useUnit } from '../hooks/useSettings'
 import { useThemeChoice } from '../hooks/useTheme'
@@ -72,6 +72,12 @@ export function Settings() {
     } catch (err) {
       setStatus(`Import failed: ${(err as Error).message}`)
     }
+  }
+
+  async function reset() {
+    if (!confirm('Delete every logged workout and put every plan back on week 1? Routines, plans, exercises, equipment and body data stay. This cannot be undone.')) return
+    const n = await resetHistory()
+    setStatus(`${n} workout${n === 1 ? '' : 's'} deleted. Plans are back on week 1.`)
   }
 
   async function wipe() {
@@ -165,9 +171,17 @@ export function Settings() {
 
       <div className="card">
         <div className="card__title">Danger zone</div>
-        <button type="button" className="btn btn--ghost btn--danger" onClick={wipe}>
-          Delete all data
-        </button>
+        <div className="row">
+          <button type="button" className="btn btn--ghost btn--danger" onClick={reset}>
+            Reset workout history
+          </button>
+          <button type="button" className="btn btn--ghost btn--danger" onClick={wipe}>
+            Delete all data
+          </button>
+        </div>
+        <p className="muted small" style={{ margin: '8px 0 0' }}>
+          Reset clears every logged workout and starts your plans from week 1, keeping routines, plans, exercises, equipment and body data. Delete removes everything.
+        </p>
       </div>
 
       <p className="muted small center">

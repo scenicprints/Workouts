@@ -274,3 +274,26 @@ describe('equipment limits set on the exercise', () => {
     expect(s.entries[0].note).toBe('Maxed out at 65 kg: reps 5 → 6')
   })
 })
+
+describe('resetHistory', () => {
+  it('deletes every session and puts plans back on week 1, keeping the rest', async () => {
+    const routine = await makeRoutine()
+    const gearId = (await database.gear.add({ name: 'Rack', step: 5, createdAt: 0 })) as number
+    await database.exercises.update(routine.items[0].exerciseId, { gearId })
+    const planId = (await database.plans.add({ name: 'P', weeks: 4, deloadEvery: 0, days: [{ label: 'Mon', routineId: routine.id! }], cursor: 3, startedAt: 123, active: true, createdAt: 0 })) as number
+    const id = await sessions.startRoutineSession(routine, { unit: 'kg', readiness: false })
+    await sessions.finishSession(id)
+    await sessions.startRoutineSession(routine, { unit: 'kg', readiness: false })
+    expect(await database.sessions.count()).toBe(2)
+
+    const { resetHistory } = await import('../db')
+    expect(await resetHistory(database)).toBe(2)
+    expect(await database.sessions.count()).toBe(0)
+    const plan = await database.plans.get(planId)
+    expect(plan).toMatchObject({ cursor: 0, active: true })
+    expect(plan?.startedAt).toBeUndefined()
+    expect(await database.routines.count()).toBe(1)
+    expect(await database.gear.count()).toBe(1)
+    expect((await database.exercises.get(routine.items[0].exerciseId))?.gearId).toBe(gearId)
+  })
+})
