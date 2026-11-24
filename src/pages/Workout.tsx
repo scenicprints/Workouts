@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Check, ChevronDown, Link2, MoreHorizontal } from 'lucide-react'
-import { db, type Exercise, type Session, type SessionEntry, type SetEntry, type Unit } from '../db'
+import { db, type Exercise, type Gear, type Session, type SessionEntry, type SetEntry, type Unit } from '../db'
 import { useDefaultRest, useExerciseMap, useRestTimerEnabled, useUnit } from '../hooks/useSettings'
 import { restTimer } from '../hooks/useRestTimer'
 import { discardSession, finishSession, nextPlanWorkout, startEmptySession, startRoutineSession } from '../lib/sessions'
@@ -95,6 +95,7 @@ function ActiveWorkout({ session }: { session: Session }) {
   const [open, setOpen] = useState(() => firstUnfinished(session))
   const [now, setNow] = useState(() => Date.now())
   const history = useLiveQuery(() => db.sessions.filter((s) => !!s.finishedAt).toArray(), []) ?? NO_SESSIONS
+  const gearById = useLiveQuery(async () => new Map((await db.gear.toArray()).map((g) => [g.id!, g])), [])
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000)
@@ -205,6 +206,7 @@ function ActiveWorkout({ session }: { session: Session }) {
   const panelProps = (ei: number) => ({
     entry: session.entries[ei],
     exercise: exercises?.get(session.entries[ei].exerciseId),
+    gear: gearById?.get(exercises?.get(session.entries[ei].exerciseId)?.gearId ?? -1),
     unit,
     previous: latestEntryFor(history, session.entries[ei].exerciseId),
     timerOn,
@@ -335,6 +337,8 @@ function firstUnfinished(session: Session): number {
 interface PanelProps {
   entry: SessionEntry
   exercise: Exercise | undefined
+  /** The equipment the exercise is linked to, when any. */
+  gear: Gear | undefined
   unit: Unit
   previous: SessionEntry | undefined
   timerOn: boolean
@@ -363,8 +367,8 @@ function labelSets(entry: SessionEntry, previous: SessionEntry | undefined) {
 function SetRowView({ p, si, label, prev, prefix }: { p: PanelProps; si: number; label: string; prev: SetEntry | undefined; prefix?: string }) {
   const set = p.entry.sets[si]
   const unit = p.unit
-  // Nudge by what this equipment moves in (set on the exercise, else learned from the log), not a generic plate.
-  const step = p.exercise?.load?.step || p.entry.increment || (unit === 'kg' ? 2.5 : 5)
+  // Nudge by what this equipment moves in (set on the gear, else learned from the log), not a generic plate.
+  const step = p.gear?.step || p.entry.increment || (unit === 'kg' ? 2.5 : 5)
   const nextUp = p.entry.sets.findIndex((s) => !s.done)
   const isWarm = set.kind === 'warmup'
   const isNext = si === nextUp

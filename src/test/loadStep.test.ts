@@ -97,11 +97,11 @@ describe('loggedWeights', () => {
 describe('user-set limits', () => {
   const machine = { equipment: 'Machine', bodyweight: false }
   it('a set step beats the learned one and the floor anchors the grid', () => {
-    const r = resolveStep([100, 90], 5, { ...machine, load: { step: 5, min: 15, max: 200 } }, 'lb')
+    const r = resolveStep([100, 90], 5, machine, 'lb', { step: 5, min: 15, max: 200 })
     expect(r).toMatchObject({ step: 5, source: 'set', anchor: 15, min: 15, max: 200 })
   })
   it('keeps the learned step when only the limits are set', () => {
-    expect(resolveStep([100, 90], 5, { ...machine, load: { max: 200 } }, 'lb')).toMatchObject({ step: 10, source: 'logged', max: 200, min: undefined })
+    expect(resolveStep([100, 90], 5, machine, 'lb', { max: 200 })).toMatchObject({ step: 10, source: 'logged', max: 200, min: undefined })
   })
   it('throws out nonsense limits', () => {
     expect(cleanLimits({ step: 0, min: -5, max: 0 })).toEqual({})
@@ -112,5 +112,23 @@ describe('user-set limits', () => {
     expect(clampToLimits(250, { max: 200 })).toBe(200)
     expect(clampToLimits(10, { min: 15 })).toBe(15)
     expect(clampToLimits(50, {})).toBe(50)
+  })
+})
+
+describe('pooled weights on shared equipment', () => {
+  const s = (id: number, finishedAt: number, exerciseId: number, weights: number[]): Session => ({
+    id,
+    name: 'A',
+    startedAt: finishedAt - 1,
+    finishedAt,
+    entries: [{ exerciseId, restSec: 60, increment: 5, sets: weights.map((weight) => ({ reps: 8, weight, done: true, kind: 'work' as const })) }],
+  })
+  it('learns the stack from two exercises together', () => {
+    // Pushdowns only ever at 60; face pulls at 40 and 50. Alone, pushdowns say nothing about the step.
+    const sessions = [s(1, 100, 7, [60]), s(2, 200, 8, [40]), s(3, 300, 8, [50])]
+    expect(learnStep(loggedWeights(sessions, 7), 'lb')).toBeUndefined()
+    const pooled = loggedWeights(sessions, [7, 8])
+    expect(pooled).toEqual([50, 40, 60])
+    expect(learnStep(pooled, 'lb')?.step).toBe(10)
   })
 })

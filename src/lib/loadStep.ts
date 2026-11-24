@@ -33,13 +33,21 @@ function onGrid(weight: number, anchor: number, step: number): boolean {
   return Math.abs(k - Math.round(k)) < 1e-3
 }
 
-/** Every weight (> 0) logged on a completed work set for an exercise, newest session first. */
-export function loggedWeights(sessions: Session[], exerciseId: number): number[] {
+/**
+ * Every weight (> 0) logged on a completed work set for an exercise, newest session first. Pass
+ * several ids to pool the exercises done on one piece of equipment: they share its grid, so a
+ * pushdown and a face pull on the same cable stack teach the step together. The first id's weights
+ * come first within a session so the anchor stays with the exercise being planned.
+ */
+export function loggedWeights(sessions: Session[], exerciseId: number | number[]): number[] {
+  const ids = Array.isArray(exerciseId) ? exerciseId : [exerciseId]
   const out: number[] = []
   for (const s of [...sessions].filter((x) => x.finishedAt).sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))) {
-    for (const e of s.entries) {
-      if (e.exerciseId !== exerciseId) continue
-      for (const set of e.sets) if (set.done && set.kind !== 'warmup' && set.weight > 0) out.push(set.weight)
+    for (const id of ids) {
+      for (const e of s.entries) {
+        if (e.exerciseId !== id) continue
+        for (const set of e.sets) if (set.done && set.kind !== 'warmup' && set.weight > 0) out.push(set.weight)
+      }
     }
   }
   return out
@@ -82,8 +90,8 @@ export function equipmentStep(exercise: Pick<Exercise, 'equipment' | 'bodyweight
  * else the routine's seed increment, else the equipment default. A seed of exactly 0 on a
  * bodyweight or cardio item means "there is no load to add" and is kept as is.
  */
-export function resolveStep(weights: number[], seed: number | undefined, exercise: Pick<Exercise, 'equipment' | 'bodyweight' | 'load'> | undefined, unit: Unit): LoadStep {
-  const limits = cleanLimits(exercise?.load)
+export function resolveStep(weights: number[], seed: number | undefined, exercise: Pick<Exercise, 'equipment' | 'bodyweight'> | undefined, unit: Unit, gear?: LoadLimits): LoadStep {
+  const limits = cleanLimits(gear)
   const learned = learnStep(weights, unit)
   const base: LoadStep = (() => {
     if (limits.step !== undefined) return { step: limits.step, source: 'set', anchor: limits.min ?? weights[0] ?? 0 }

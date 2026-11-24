@@ -256,7 +256,8 @@ describe('equipment limits set on the exercise', () => {
   }
   it('uses the set step and stops at the ceiling with reps climbing', async () => {
     const routine = await makeRoutine()
-    await database.exercises.update(routine.items[0].exerciseId, { load: { step: 5, max: 65 } })
+    const gearId = (await database.gear.add({ name: 'Rack', step: 5, max: 65, createdAt: 0 })) as number
+    await database.exercises.update(routine.items[0].exerciseId, { gearId })
     await cleanSession(routine)
     let id = await sessions.startRoutineSession(routine, { unit: 'kg', readiness: false })
     let s = (await database.sessions.get(id))!

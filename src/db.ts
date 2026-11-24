@@ -32,8 +32,8 @@ export interface Exercise {
   compound?: boolean
   bodyweight?: boolean
   custom?: boolean
-  /** What the equipment for this exercise can load, set by the user. Overrides anything learned. */
-  load?: LoadLimits
+  /** The piece of equipment this exercise is done on (see `Gear`). Its limits beat anything learned. */
+  gearId?: number
   createdAt: number
 }
 
@@ -45,6 +45,17 @@ export interface LoadLimits {
   max?: number
   /** What one notch on the equipment moves the weight by. */
   step?: number
+}
+
+/**
+ * A piece of equipment set up once and shared by every exercise done on it: "Cable stack",
+ * "Dumbbells", "Leg press". Its step, floor and ceiling steer progression for all of them, and the
+ * step is learned from their pooled weights when it is left blank.
+ */
+export interface Gear extends LoadLimits {
+  id?: number
+  name: string
+  createdAt: number
 }
 
 export interface RoutineItem {
@@ -190,6 +201,7 @@ export class WorkoutsDB extends Dexie {
   body!: EntityTable<BodyEntry, 'id'>
   daily!: EntityTable<DailyEntry, 'date'>
   settings!: EntityTable<Setting, 'key'>
+  gear!: EntityTable<Gear, 'id'>
 
   constructor(name = 'workouts') {
     super(name)
@@ -232,6 +244,16 @@ export class WorkoutsDB extends Dexie {
       body: '++id, &date',
       daily: '&date',
       settings: '&key',
+    })
+    this.version(4).stores({
+      exercises: '++id, name, muscle, pattern, gearId',
+      routines: '++id, name',
+      plans: '++id, active',
+      sessions: '++id, startedAt, finishedAt, routineId, planId',
+      body: '++id, &date',
+      daily: '&date',
+      settings: '&key',
+      gear: '++id, name',
     })
   }
 }
@@ -345,7 +367,7 @@ export async function setSetting(key: string, value: unknown, database: Workouts
 }
 
 export interface ExportBundle {
-  version: 1 | 2 | 3
+  version: 1 | 2 | 3 | 4
   exportedAt: number
   exercises: Exercise[]
   routines: Routine[]
@@ -354,12 +376,13 @@ export interface ExportBundle {
   body?: BodyEntry[]
   daily?: DailyEntry[]
   settings: Setting[]
+  gear?: Gear[]
 }
 
-const ALL_TABLES = (d: WorkoutsDB) => [d.exercises, d.routines, d.plans, d.sessions, d.body, d.daily, d.settings]
+const ALL_TABLES = (d: WorkoutsDB) => [d.exercises, d.routines, d.plans, d.sessions, d.body, d.daily, d.settings, d.gear]
 
 export async function exportAll(database: WorkoutsDB = db): Promise<ExportBundle> {
-  const [exercises, routines, plans, sessions, body, daily, settings] = await Promise.all([
+  const [exercises, routines, plans, sessions, body, daily, settings, gear] = await Promise.all([
     database.exercises.toArray(),
     database.routines.toArray(),
     database.plans.toArray(),
@@ -367,14 +390,16 @@ export async function exportAll(database: WorkoutsDB = db): Promise<ExportBundle
     database.body.toArray(),
     database.daily.toArray(),
     database.settings.toArray(),
+    database.gear.toArray(),
   ])
-  return { version: 3, exportedAt: Date.now(), exercises, routines, plans, sessions, body, daily, settings }
+  return { version: 4, exportedAt: Date.now(), exercises, routines, plans, sessions, body, daily, settings, gear }
 }
 
 export async function importAll(bundle: ExportBundle, database: WorkoutsDB = db): Promise<void> {
-  if (![1, 2, 3].includes(bundle.version) || !Array.isArray(bundle.exercises)) throw new Error('Not a Workouts backup file')
+  if (![1, 2, 3, 4].includes(bundle.version) || !Array.isArray(bundle.exercises)) throw new Error('Not a Workouts backup file')
   await database.transaction('rw', ALL_TABLES(database), async () => {
     await Promise.all(ALL_TABLES(database).map((t) => t.clear()))
+    await database.gear.bulkAdd(bundle.gear ?? [])
     await database.exercises.bulkAdd(bundle.exercises)
     await database.routines.bulkAdd(bundle.routines ?? [])
     await database.plans.bulkAdd((bundle.plans ?? []).map((p) => ({ ...p, cursor: p.cursor ?? 0 })))

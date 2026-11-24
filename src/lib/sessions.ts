@@ -89,6 +89,7 @@ export async function startRoutineSession(routine: Routine, options: StartOption
   const readiness = options.readiness === false ? null : (options.readiness ?? (await currentReadiness(unit)))
   const rules = readiness?.rules
   const exercises = new Map((await db.exercises.toArray()).map((e) => [e.id!, e]))
+  const gearById = new Map((await db.gear.toArray()).map((g) => [g.id!, g]))
   let planFields: Partial<Session> = {}
   let isDeload = false
   let dropSet = false
@@ -107,8 +108,11 @@ export async function startRoutineSession(routine: Routine, options: StartOption
     const suggestedWeight = !previous && item.weight <= 0 ? suggestStartingWeight(finished, item.exerciseId, firstReps, unit) : undefined
     const exercise = exercises.get(item.exerciseId)
     const compound = !!exercise?.compound
-    // What this equipment moves in, learned from every weight ever logged for the exercise.
-    const step = resolveStep(loggedWeights(finished, item.exerciseId), item.increment, exercise, unit)
+    // What this equipment moves in: the gear's own numbers, else learned from every weight logged on
+    // it (pooled across the exercises that share the gear), else the routine's seed.
+    const gear = exercise?.gearId ? gearById.get(exercise.gearId) : undefined
+    const pooled = gear ? [item.exerciseId, ...[...exercises.values()].filter((e) => e.gearId === gear.id && e.id !== item.exerciseId).map((e) => e.id!)] : item.exerciseId
+    const step = resolveStep(loggedWeights(finished, pooled), item.increment, exercise, unit, gear)
     const target = nextTarget(item, previous, {
       isDeload,
       unit,
