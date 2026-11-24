@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { ErrorBoundary } from './ErrorBoundary'
 import { Dumbbell, History, House, MoreHorizontal, PersonStanding } from 'lucide-react'
 import { db } from '../db'
 import { RestTimerBar } from './RestTimerBar'
@@ -19,13 +20,16 @@ const tabs = [
 
 export function Layout() {
   const active = useLiveQuery(() => db.sessions.where('finishedAt').equals(0).first(), [])
+  const location = useLocation()
   useHealthAutoSync()
   useApplyTheme()
   return (
     <div className="app" onPointerDown={unlockAudio}>
       <main className="page">
         <UpdateBanner />
-        <Outlet />
+        <ErrorBoundary key={location.pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
       <RestTimerBar />
       <NumberPad />

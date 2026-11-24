@@ -419,7 +419,12 @@ export async function resetHistory(database: WorkoutsDB = db): Promise<number> {
   return database.transaction('rw', database.sessions, database.plans, async () => {
     const count = await database.sessions.count()
     await database.sessions.clear()
-    await database.plans.toCollection().modify({ cursor: 0, startedAt: undefined })
+    // Rewrite each plan whole rather than patching, so the position cannot survive in any form.
+    for (const p of await database.plans.toArray()) {
+      const { startedAt: _dropped, ...rest } = p
+      void _dropped
+      await database.plans.put({ ...rest, cursor: 0 })
+    }
     return count
   })
 }
